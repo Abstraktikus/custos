@@ -6,7 +6,9 @@ setlocal
 call "%~dp0_vsenv.cmd"
 set "DEPS=-DFETCHCONTENT_SOURCE_DIR_JUCE=C:/dev/_deps/JUCE -DFETCHCONTENT_SOURCE_DIR_CATCH2=C:/dev/_deps/Catch2"
 echo === configure ===
-set SYNTHARG=
+rem Explicitly clear the cached synth path when none is given (else a prior deploy's
+rem CUSTOS_HARDCODED_SYNTH_PATH lingers in the cache and the test build loads a real synth).
+set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH=
 if not "%~1"=="" set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH="%~1"
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% %SYNTHARG%
 if errorlevel 1 exit /b 1
