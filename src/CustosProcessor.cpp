@@ -39,6 +39,11 @@ CustosProcessor::~CustosProcessor()
 
 void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInner)
 {
+    // M1 contract: called once, from the constructor, on the message thread, before the host
+    // starts processing. TODO(M4 glitch-free swap): a runtime swap must (a) bypass the audio
+    // thread around the exchange and (b) call releaseResources() on the OUTGOING inner before
+    // it is destroyed. processBlock reads `inner` (and getTailLengthSeconds too) without
+    // synchronization, so an unguarded second call here is a use-after-free on the audio thread.
     InnerBinding::unbindAll (facade);
     inner = std::move (newInner);
     boundCount = 0;

@@ -39,6 +39,15 @@ TEST_CASE ("FacadeParameter mirrors a bound inner parameter")
     REQUIRE (f.getValue() == Catch::Approx (innerP->getValue()));
     REQUIRE (f.getValue() == Catch::Approx (0.9f));
 
+    // Full delegation fidelity (spec S5: name + value + range + stepped mirrored 1:1).
+    REQUIRE (f.getLabel() == innerP->getLabel());
+    REQUIRE (f.getDefaultValue() == Catch::Approx (innerP->getDefaultValue()));
+    REQUIRE (f.getNumSteps() == innerP->getNumSteps());
+    REQUIRE (f.isDiscrete() == innerP->isDiscrete());
+    REQUIRE (f.isBoolean() == innerP->isBoolean());
+    REQUIRE (f.getText (0.5f, 32) == innerP->getText (0.5f, 32));
+    REQUIRE (f.getValueForText ("0.5") == Catch::Approx (innerP->getValueForText ("0.5")));
+
     f.bind (nullptr);              // back to inert
     REQUIRE (f.getValue() == 0.0f);
 }

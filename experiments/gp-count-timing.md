@@ -11,6 +11,10 @@ or whether every wrapper must keep the fixed 5000 facade.
    `.\scripts\build.cmd Custos`
 2. Install `Custos.vst3`, rescan in GP.
 3. Delete any old log: `%TEMP%\custos-hosttrace.log`.
+4. Use a **single** Custos instance. The "first getName" latch is process-global, so with two
+   instances loaded it fires only for whichever GP queries first and the ordering is meaningless.
+   (Also: don't run `ctest` between GP runs without re-deleting the log — the trace unit test
+   writes to the same file.)
 
 ## Procedure
 - **Run A (fresh add):** add Custos to a rackspace, then read the log.
