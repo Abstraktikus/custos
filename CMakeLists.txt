@@ -19,6 +19,7 @@ add_library(custos_core STATIC
     src/FacadeParameter.cpp
     src/InnerBinding.cpp
     src/SynthLoader.cpp
+    src/HostTrace.cpp
     src/CustosProcessor.cpp)
 target_include_directories(custos_core PUBLIC src)
 target_compile_features(custos_core PUBLIC cxx_std_17)
@@ -36,6 +37,11 @@ target_link_libraries(custos_core
 if(CUSTOS_HARDCODED_SYNTH_PATH)
     target_compile_definitions(custos_core PUBLIC
         CUSTOS_HARDCODED_SYNTH_PATH="${CUSTOS_HARDCODED_SYNTH_PATH}")
+endif()
+
+option(CUSTOS_HOST_TRACE "Write a timestamped host-call trace log (GP count-timing experiment)" ON)
+if(CUSTOS_HOST_TRACE)
+    target_compile_definitions(custos_core PUBLIC CUSTOS_HOST_TRACE=1)
 endif()
 
 # ---- The plugin -----------------------------------------------------------

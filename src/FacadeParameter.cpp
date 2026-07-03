@@ -1,4 +1,5 @@
 #include "FacadeParameter.h"
+#include "HostTrace.h"
 
 namespace custos
 {
@@ -26,6 +27,11 @@ float FacadeParameter::getDefaultValue() const
 }
 juce::String FacadeParameter::getName (int len) const
 {
+    static std::atomic<bool> firstLogged { false };
+    bool expected = false;
+    if (firstLogged.compare_exchange_strong (expected, true))
+        trace ("first FacadeParameter::getName (index=" + juce::String (index) + ")");
+
     if (auto* p = inner.load()) return p->getName (len);
     return {};
 }

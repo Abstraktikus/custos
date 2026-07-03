@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CustosProcessor.h"
 #include "FakeInnerProcessor.h"
+#include "HostTrace.h"
 #include <memory>
 
 using namespace custos;
@@ -46,4 +47,17 @@ TEST_CASE ("CustosProcessor outputs silence when no inner is attached")
 
     REQUIRE (buffer.getSample (0, 0) == 0.0f);
     REQUIRE (buffer.getSample (1, 63) == 0.0f);
+}
+
+TEST_CASE ("trace writes a line to the host-trace log")
+{
+    auto logFile = custos::traceLogFile();
+    logFile.deleteFile();
+    custos::trace ("unit-test-marker");
+   #if defined(CUSTOS_HOST_TRACE)
+    REQUIRE (logFile.existsAsFile());
+    REQUIRE (logFile.loadFileAsString().contains ("unit-test-marker"));
+   #else
+    SUCCEED ("tracing compiled out");
+   #endif
 }

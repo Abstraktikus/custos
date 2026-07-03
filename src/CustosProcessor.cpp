@@ -1,5 +1,6 @@
 #include "CustosProcessor.h"
 #include "SynthLoader.h"
+#include "HostTrace.h"
 
 namespace custos
 {
@@ -7,6 +8,7 @@ CustosProcessor::CustosProcessor()
     : juce::AudioProcessor (BusesProperties()
         .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    trace ("ctor: begin");
     facade.reserve (kFacadeParamCount);
     for (int i = 0; i < kFacadeParamCount; ++i)
     {
@@ -26,6 +28,8 @@ CustosProcessor::CustosProcessor()
         else
             juce::Logger::writeToLog ("Custos: inner synth load failed: " + error);
     }
+
+    trace ("ctor: end, boundCount=" + juce::String (boundCount));
 }
 
 CustosProcessor::~CustosProcessor()
@@ -53,6 +57,7 @@ void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInne
 
 void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    trace ("prepareToPlay sr=" + juce::String (sampleRate));
     preparedSampleRate = sampleRate;
     preparedBlockSize  = samplesPerBlock;
     isPrepared = true;
@@ -82,5 +87,15 @@ bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     return layouts.getMainInputChannelSet().isDisabled()
         && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+}
+
+void CustosProcessor::getStateInformation (juce::MemoryBlock&)
+{
+    trace ("getStateInformation");   // M3 will persist real state here
+}
+
+void CustosProcessor::setStateInformation (const void*, int)
+{
+    trace ("setStateInformation");   // M3 will restore real state here
 }
 }

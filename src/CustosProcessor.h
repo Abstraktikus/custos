@@ -39,8 +39,8 @@ public:
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
 
-    void getStateInformation (juce::MemoryBlock&) override {}   // M3
-    void setStateInformation (const void*, int) override {}     // M3
+    void getStateInformation (juce::MemoryBlock&) override;   // M3 (traced for the count-timing experiment)
+    void setStateInformation (const void*, int) override;     // M3 (traced)
 
     int facadeSize() const noexcept { return (int) facade.size(); }
     int boundParamCount() const noexcept { return boundCount; }
