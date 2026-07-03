@@ -10,7 +10,8 @@ if not defined CUSTOS_DEPLOY_DIR set "CUSTOS_DEPLOY_DIR=C:\Users\marti\OneDrive\
 set "DEPS=-DFETCHCONTENT_SOURCE_DIR_JUCE=C:/dev/_deps/JUCE -DFETCHCONTENT_SOURCE_DIR_CATCH2=C:/dev/_deps/Catch2"
 
 rem Build the synth-path arg in a variable (handles spaces; avoids cmd paren-block parsing).
-set SYNTHARG=
+rem Clear the cached synth path when none is given (silent-passthrough deploy).
+set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH=
 if not "%~1"=="" set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH="%~1"
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% %SYNTHARG%
 if errorlevel 1 exit /b 1

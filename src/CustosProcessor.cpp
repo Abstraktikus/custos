@@ -1,6 +1,8 @@
 #include "CustosProcessor.h"
 #include "SynthLoader.h"
 #include "HostTrace.h"
+#include "SynthWindow.h"
+#include "CustosEditor.h"
 
 namespace custos
 {
@@ -34,7 +36,13 @@ CustosProcessor::CustosProcessor()
 
 CustosProcessor::~CustosProcessor()
 {
+    synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
+}
+
+juce::AudioProcessorEditor* CustosProcessor::createEditor()
+{
+    return new CustosEditor (*this);
 }
 
 void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInner)
@@ -92,6 +100,47 @@ bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     return layouts.getMainInputChannelSet().isDisabled()
         && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+}
+
+juce::String CustosProcessor::innerSynthName() const
+{
+    return inner != nullptr ? inner->getName() : juce::String ("(none)");
+}
+
+void CustosProcessor::showSynthWindow()
+{
+    if (inner == nullptr) return;                              // nothing to show
+    if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
+    if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
+    {
+        // The window's close button defers this callback via the message queue; it can outlive
+        // both the window and this processor. Guard with a weak token so a late dispatch after
+        // ~CustosProcessor is a safe no-op (not a use-after-free).
+        std::weak_ptr<bool> weak = aliveToken;
+        synthWindow = std::make_unique<SynthWindow> (
+            kProduct + juce::String (" - ") + inner->getName(),
+            ed,
+            [this, weak] { if (! weak.expired()) hideSynthWindow(); });
+    }
+    refreshEditor();
+}
+
+void CustosProcessor::hideSynthWindow()
+{
+    synthWindow.reset();
+    refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
+}
+
+void CustosProcessor::refreshEditor()
+{
+    if (auto* e = dynamic_cast<CustosEditor*> (getActiveEditor()))
+        e->refresh();
+}
+
+void CustosProcessor::toggleSynthWindow()
+{
+    if (isSynthWindowVisible()) hideSynthWindow();
+    else                        showSynthWindow();
 }
 
 void CustosProcessor::getStateInformation (juce::MemoryBlock&)
