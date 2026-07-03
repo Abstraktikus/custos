@@ -9,7 +9,7 @@ std::unique_ptr<juce::AudioPluginInstance> SynthLoader::loadVST3 (
     if (! juce::File (path).exists()) { errorMessage = "file not found: " + path; return nullptr; }
 
     juce::AudioPluginFormatManager formatManager;
-    formatManager.addFormat (new juce::VST3PluginFormat());   // JUCE 8: member addDefaultFormats() is deleted
+    formatManager.addFormat (std::make_unique<juce::VST3PluginFormat>());   // JUCE 8: member addDefaultFormats() is deleted
 
     juce::VST3PluginFormat vst3;
     juce::OwnedArray<juce::PluginDescription> descriptions;
