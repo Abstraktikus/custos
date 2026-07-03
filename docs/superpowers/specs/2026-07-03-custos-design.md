@@ -59,6 +59,9 @@ as today (its macros/automation bind to the stable Custos params). Custos does *
   - `juce::AudioPluginFormatManager` + `juce::AudioPluginInstance` → Custos *hosts* the inner VST3
     (audio + parameters + GUI embedding via `IPlugView`/HWND).
 - **Build:** CMake (`juce_add_plugin`), not Projucer.
+- **Branding:** VST3 vendor/manufacturer = **"Kapellmeister"** (company name + shared
+  `PLUGIN_MANUFACTURER_CODE` across all variants). Product name stays **"Custos"**. So GP lists the
+  plugins under the Kapellmeister vendor, named `Custos 01` … `Custos Joker`.
 - **Rationale for not using Rust/nih-plug (the `tacet` stack):** nih-plug can only *be* a plugin, it
   cannot *host* one. Hosting a VST3 inside a plugin (factory, `IComponent`, `IEditController`,
   audio processing, GUI embedding) is a solved, battle-tested problem in JUCE and unbuilt territory
@@ -76,7 +79,8 @@ stable VST3 identity so GP pins each to its slot.
 - **One** source tree.
 - A **CMake build matrix** produces N `.vst3` binaries: `Custos 01`, `Custos 02`, … + `Custos
   Joker`. Each gets a distinct `PLUGIN_CODE` → distinct **FUID + product name** → GP treats them as
-  distinct plugins and pins each to a fixed slot.
+  distinct plugins and pins each to a fixed slot. All variants share the vendor/manufacturer
+  **"Kapellmeister"** (same `PLUGIN_MANUFACTURER_CODE`); only `PLUGIN_CODE` differs per variant.
 - The only per-variant difference is compile-time constants:
   - `CUSTOS_SLOT` — integer slot index (drives FUID, name, OSC address).
   - `CUSTOS_MODE` — `resident` | `joker`.
