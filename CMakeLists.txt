@@ -18,6 +18,7 @@ set(CUSTOS_HARDCODED_SYNTH_PATH "" CACHE STRING
 add_library(custos_core STATIC
     src/FacadeParameter.cpp
     src/InnerBinding.cpp
+    src/SynthLoader.cpp
     src/CustosProcessor.cpp)
 target_include_directories(custos_core PUBLIC src)
 target_compile_features(custos_core PUBLIC cxx_std_17)

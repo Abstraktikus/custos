@@ -1,4 +1,5 @@
 #include "CustosProcessor.h"
+#include "SynthLoader.h"
 
 namespace custos
 {
@@ -12,6 +13,18 @@ CustosProcessor::CustosProcessor()
         auto* p = new FacadeParameter (i);
         addParameter (p);
         facade.push_back (p);
+    }
+
+    // M1: load a single hard-coded synth at boot. Empty path => silent passthrough.
+    const auto path = hardcodedSynthPath();
+    if (path.isNotEmpty())
+    {
+        juce::String error;
+        // Placeholder rate/block; prepareToPlay re-prepares with the host's real values.
+        if (auto instance = SynthLoader::loadVST3 (path, 44100.0, 512, error))
+            attachInner (std::move (instance));
+        else
+            juce::Logger::writeToLog ("Custos: inner synth load failed: " + error);
     }
 }
 
