@@ -9,11 +9,10 @@ call "%~dp0_vsenv.cmd"
 if not defined CUSTOS_DEPLOY_DIR set "CUSTOS_DEPLOY_DIR=C:\Users\marti\OneDrive\Keyboard\GigPerformer\Kapellmeister\Custos"
 set "DEPS=-DFETCHCONTENT_SOURCE_DIR_JUCE=C:/dev/_deps/JUCE -DFETCHCONTENT_SOURCE_DIR_CATCH2=C:/dev/_deps/Catch2"
 
-if "%~1"=="" (
-  cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS%
-) else (
-  cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% -DCUSTOS_HARDCODED_SYNTH_PATH=%1
-)
+rem Build the synth-path arg in a variable (handles spaces; avoids cmd paren-block parsing).
+set SYNTHARG=
+if not "%~1"=="" set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH="%~1"
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% %SYNTHARG%
 if errorlevel 1 exit /b 1
 cmake --build build --target Custos_VST3
 if errorlevel 1 exit /b 2
