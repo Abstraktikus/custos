@@ -26,7 +26,7 @@ if not defined VST3 ( echo ERROR: Custos.vst3 not found under build\ & exit /b 3
 echo Deploying "%VST3%"
 echo        -> "%CUSTOS_DEPLOY_DIR%\Custos.vst3"
 if not exist "%CUSTOS_DEPLOY_DIR%" mkdir "%CUSTOS_DEPLOY_DIR%"
-robocopy "%VST3%" "%CUSTOS_DEPLOY_DIR%\Custos.vst3" /MIR /NJH /NJS /NDL /NP /R:2 /W:1 >nul
+robocopy "%VST3%" "%CUSTOS_DEPLOY_DIR%\Custos.vst3" /MIR /XF *.ilk *.pdb *.exp /NJH /NJS /NDL /NP /R:2 /W:1 >nul
 if errorlevel 8 ( echo ERROR: robocopy failed & exit /b 4 )
 echo done.
 exit /b 0
