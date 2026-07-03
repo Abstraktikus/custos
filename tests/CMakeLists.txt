@@ -9,7 +9,8 @@ add_executable(custos_tests
     FacadeParameterTest.cpp
     InnerBindingTest.cpp
     PassthroughTest.cpp
-    SynthLoaderTest.cpp)
+    SynthLoaderTest.cpp
+    EditorTest.cpp)
 target_include_directories(custos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(custos_tests PRIVATE custos_core Catch2::Catch2WithMain)
 

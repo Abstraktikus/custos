@@ -1,6 +1,7 @@
 #include "CustosProcessor.h"
 #include "SynthLoader.h"
 #include "HostTrace.h"
+#include "SynthWindow.h"
 
 namespace custos
 {
@@ -34,6 +35,7 @@ CustosProcessor::CustosProcessor()
 
 CustosProcessor::~CustosProcessor()
 {
+    synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
 }
 
@@ -92,6 +94,33 @@ bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     return layouts.getMainInputChannelSet().isDisabled()
         && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+}
+
+juce::String CustosProcessor::innerSynthName() const
+{
+    return inner != nullptr ? inner->getName() : juce::String ("(none)");
+}
+
+void CustosProcessor::showSynthWindow()
+{
+    if (inner == nullptr) return;                              // nothing to show
+    if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
+    if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
+        synthWindow = std::make_unique<SynthWindow> (
+            kProduct + juce::String (" - ") + inner->getName(),
+            ed,
+            [this] { hideSynthWindow(); });
+}
+
+void CustosProcessor::hideSynthWindow()
+{
+    synthWindow.reset();
+}
+
+void CustosProcessor::toggleSynthWindow()
+{
+    if (isSynthWindowVisible()) hideSynthWindow();
+    else                        showSynthWindow();
 }
 
 void CustosProcessor::getStateInformation (juce::MemoryBlock&)

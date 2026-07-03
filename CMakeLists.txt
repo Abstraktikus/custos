@@ -20,6 +20,7 @@ add_library(custos_core STATIC
     src/InnerBinding.cpp
     src/SynthLoader.cpp
     src/HostTrace.cpp
+    src/SynthWindow.cpp
     src/CustosProcessor.cpp)
 target_include_directories(custos_core PUBLIC src)
 target_compile_features(custos_core PUBLIC cxx_std_17)
@@ -31,6 +32,7 @@ target_compile_definitions(custos_core PUBLIC
 target_link_libraries(custos_core
     PUBLIC
         juce::juce_audio_processors
+        juce::juce_gui_basics
     PRIVATE
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)

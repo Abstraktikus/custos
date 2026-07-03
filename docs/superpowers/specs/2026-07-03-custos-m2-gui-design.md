@@ -55,7 +55,7 @@ host destroying/recreating the editor panel never affects the synth window.
 
 ### 3.2 `SynthWindow` (Custos-owned top-level window)
 A `juce::DocumentWindow` (or equivalent top-level `Component`) that hosts the inner synth's editor
-obtained via `inner->createEditorIfNeeded()`. It:
+obtained via `inner->createEditorAndMakeActive()`. It:
 - sizes itself to the inner editor's initial bounds and follows the inner editor's resize requests
   (JUCE `AudioProcessorEditor` resize/constrainer callbacks);
 - is closable via its own title bar → closing it **destroys the window and the hosted inner editor
@@ -95,7 +95,7 @@ lifecycle are message-thread). The audio thread never touches `synthWindow`.
 ```
 open Custos in host → host calls createEditor() → CustosEditor (name + status + button)
 button "Show Synth"  → processor.toggleSynthWindow()
-                     → SynthWindow created, hosts inner->createEditorIfNeeded(), sized, shown
+                     → SynthWindow created, hosts inner->createEditorAndMakeActive(), sized, shown
 button "Hide Synth"  → processor.hideSynthWindow() → window+view destroyed, inner keeps playing
 window title-bar X   → same as Hide (destroy window+view, synth keeps playing)
 Custos destroyed     → processor dtor: synthWindow reset FIRST, then inner destroyed
@@ -140,7 +140,7 @@ Custos destroyed     → processor dtor: synthWindow reset FIRST, then inner des
 - **T1:** `CustosEditor` — minimal editor (name + `Synth: <name>` status + toggle button);
   `hasEditor()==true`, `createEditor()` returns it; button wired to a processor toggle method
   (window creation stubbed). Unit test: hasEditor/createEditor + visibility flag.
-- **T2:** `SynthWindow` — host `inner->createEditorIfNeeded()` in a top-level window, size to it,
+- **T2:** `SynthWindow` — host `inner->createEditorAndMakeActive()` in a top-level window, size to it,
   follow resizes; processor owns it; `show/hide/toggle/isVisible` implemented; close detaches the
   view but keeps the synth.
 - **T3:** lifecycle safety — processor destructor tears the window down before `inner`; status line

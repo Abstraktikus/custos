@@ -8,6 +8,8 @@
 
 namespace custos
 {
+class SynthWindow;   // forward declaration (unique_ptr member; defined in SynthWindow.h)
+
 class CustosProcessor : public juce::AudioProcessor
 {
 public:
@@ -23,8 +25,8 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     bool isBusesLayoutSupported (const BusesLayout&) const override;
 
-    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
-    bool hasEditor() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }   // Task 2 returns a CustosEditor
+    bool hasEditor() const override { return false; }                        // Task 2 flips this to true
 
     const juce::String getName() const override { return kProduct; }
     bool acceptsMidi() const override { return true; }
@@ -45,11 +47,20 @@ public:
     int facadeSize() const noexcept { return (int) facade.size(); }
     int boundParamCount() const noexcept { return boundCount; }
 
+    // M2 synth-window API — message thread only.
+    void toggleSynthWindow();
+    void showSynthWindow();
+    void hideSynthWindow();
+    bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr; }
+    bool hasInnerSynth() const noexcept { return inner != nullptr; }
+    juce::String innerSynthName() const;
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
 private:
     std::unique_ptr<juce::AudioProcessor> inner;
+    std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
     int boundCount = 0;
     double preparedSampleRate = 0.0;
     int preparedBlockSize = 0;
