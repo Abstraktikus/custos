@@ -6,7 +6,8 @@ FetchContent_Declare(Catch2
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(custos_tests
-    FacadeParameterTest.cpp)
+    FacadeParameterTest.cpp
+    InnerBindingTest.cpp)
 target_include_directories(custos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(custos_tests PRIVATE custos_core Catch2::Catch2WithMain)
 
