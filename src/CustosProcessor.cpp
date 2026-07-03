@@ -10,17 +10,59 @@ CustosProcessor::CustosProcessor()
     for (int i = 0; i < kFacadeParamCount; ++i)
     {
         auto* p = new FacadeParameter (i);
-        addParameter (p);          // AudioProcessor takes ownership
+        addParameter (p);
         facade.push_back (p);
     }
 }
 
-void CustosProcessor::prepareToPlay (double, int) {}
-void CustosProcessor::releaseResources() {}
-
-void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+CustosProcessor::~CustosProcessor()
 {
-    buffer.clear();   // M1 Task 1: silence until inner synth is attached (Task 4/5)
+    InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
+}
+
+void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInner)
+{
+    InnerBinding::unbindAll (facade);
+    inner = std::move (newInner);
+    boundCount = 0;
+
+    if (inner != nullptr)
+    {
+        boundCount = InnerBinding::bind (*inner, facade);
+        if (isPrepared)
+        {
+            inner->setPlayConfigDetails (0, getTotalNumOutputChannels(),
+                                         preparedSampleRate, preparedBlockSize);
+            inner->prepareToPlay (preparedSampleRate, preparedBlockSize);
+        }
+    }
+}
+
+void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+{
+    preparedSampleRate = sampleRate;
+    preparedBlockSize  = samplesPerBlock;
+    isPrepared = true;
+
+    if (inner != nullptr)
+    {
+        inner->setPlayConfigDetails (0, getTotalNumOutputChannels(), sampleRate, samplesPerBlock);
+        inner->prepareToPlay (sampleRate, samplesPerBlock);
+    }
+}
+
+void CustosProcessor::releaseResources()
+{
+    isPrepared = false;
+    if (inner != nullptr) inner->releaseResources();
+}
+
+void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    if (inner != nullptr)
+        inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
+    else
+        buffer.clear();
 }
 
 bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
