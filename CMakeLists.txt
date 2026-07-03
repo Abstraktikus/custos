@@ -59,6 +59,9 @@ juce_add_plugin(Custos
     COPY_PLUGIN_STEP FALSE)
 target_sources(Custos PRIVATE src/PluginEntry.cpp)
 target_link_libraries(Custos PRIVATE custos_core juce::juce_recommended_config_flags)
+# VST3-only plugin, never shipped as VST2 -> disable VST2 replacement so JUCE doesn't
+# warn about VST2<->VST3 parameter-automation id mismatch (our ids are stable strings).
+target_compile_definitions(Custos PUBLIC JUCE_VST3_CAN_REPLACE_VST2=0)
 
 enable_testing()
 add_subdirectory(tests)

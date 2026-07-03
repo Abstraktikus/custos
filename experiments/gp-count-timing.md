@@ -8,7 +8,7 @@ or whether every wrapper must keep the fixed 5000 facade.
 ## Setup
 1. Build the plugin with tracing on (default) and a real hard-coded synth:
    `.\scripts\configure.cmd "<path-to-synth.vst3>"`
-   `.\scripts\build.cmd Custos`
+   `.\scripts\build.cmd Custos_VST3`   (or just `.\scripts\deploy.cmd "<path-to-synth.vst3>"`)
 2. Install `Custos.vst3`, rescan in GP.
 3. Delete any old log: `%TEMP%\custos-hosttrace.log`.
 4. Use a **single** Custos instance. The "first getName" latch is process-global, so with two

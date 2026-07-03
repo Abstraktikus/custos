@@ -15,7 +15,7 @@ if "%~1"=="" (
   cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% -DCUSTOS_HARDCODED_SYNTH_PATH=%1
 )
 if errorlevel 1 exit /b 1
-cmake --build build --target Custos
+cmake --build build --target Custos_VST3
 if errorlevel 1 exit /b 2
 
 rem Locate the built VST3 bundle (a directory) under build\.

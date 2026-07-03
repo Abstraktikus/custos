@@ -13,7 +13,7 @@ if "%~1"=="" (
 )
 if errorlevel 1 exit /b 1
 echo === build ===
-cmake --build build --target custos_tests Custos
+cmake --build build --target custos_tests Custos_VST3
 if errorlevel 1 exit /b 2
 echo === test ===
 ctest --test-dir build --output-on-failure
