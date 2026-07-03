@@ -59,6 +59,8 @@ protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
 private:
+    void refreshEditor();   // refresh the active CustosEditor (if any) after a window state change
+
     std::unique_ptr<juce::AudioProcessor> inner;
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free

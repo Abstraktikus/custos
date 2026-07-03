@@ -18,9 +18,11 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
 
-private:
-    void refresh();   // sync status text + button label from processor state
+    // Sync status text + button label from processor state. Called on button clicks, and by the
+    // processor when the synth window is closed externally (its own title-bar close box).
+    void refresh();
 
+private:
     CustosProcessor& proc;
     juce::Label      titleLabel;
     juce::Label      statusLabel;

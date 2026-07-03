@@ -122,11 +122,19 @@ void CustosProcessor::showSynthWindow()
             ed,
             [this, weak] { if (! weak.expired()) hideSynthWindow(); });
     }
+    refreshEditor();
 }
 
 void CustosProcessor::hideSynthWindow()
 {
     synthWindow.reset();
+    refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
+}
+
+void CustosProcessor::refreshEditor()
+{
+    if (auto* e = dynamic_cast<CustosEditor*> (getActiveEditor()))
+        e->refresh();
 }
 
 void CustosProcessor::toggleSynthWindow()
