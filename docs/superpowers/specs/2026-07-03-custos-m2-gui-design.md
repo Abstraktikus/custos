@@ -60,7 +60,7 @@ obtained via `inner->createEditorAndMakeActive()`. It:
   (JUCE `AudioProcessorEditor` resize/constrainer callbacks);
 - is closable via its own title bar → closing it **destroys the window and the hosted inner editor
   view, but leaves the inner synth loaded and playing** (identical to the Hide button);
-- is a normal, closable window, **not** always-on-top; first-open position is the OS default.
+- is a normal, closable window, **not** always-on-top; on first open it is **centered on screen**.
   (Always-on-top and precise placement become OSC-driven in M3.)
 
 **Hide == Close == destroy the window + its hosted view; Show == create it fresh.** There is never

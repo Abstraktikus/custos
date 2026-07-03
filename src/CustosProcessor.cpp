@@ -106,10 +106,16 @@ void CustosProcessor::showSynthWindow()
     if (inner == nullptr) return;                              // nothing to show
     if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
     if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
+    {
+        // The window's close button defers this callback via the message queue; it can outlive
+        // both the window and this processor. Guard with a weak token so a late dispatch after
+        // ~CustosProcessor is a safe no-op (not a use-after-free).
+        std::weak_ptr<bool> weak = aliveToken;
         synthWindow = std::make_unique<SynthWindow> (
             kProduct + juce::String (" - ") + inner->getName(),
             ed,
-            [this] { hideSynthWindow(); });
+            [this, weak] { if (! weak.expired()) hideSynthWindow(); });
+    }
 }
 
 void CustosProcessor::hideSynthWindow()

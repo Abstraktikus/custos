@@ -6,9 +6,11 @@ SynthWindow::SynthWindow (const juce::String& title, juce::Component* editor, st
     : juce::DocumentWindow (title, juce::Colour (0xff2b2b2b), juce::DocumentWindow::closeButton),
       onCloseCallback (std::move (onClose))
 {
+    jassert (editor != nullptr);             // the sole caller only constructs us with a real editor
     setUsingNativeTitleBar (true);
-    setContentOwned (editor, true);          // takes ownership; sizes the window to the editor
-    setResizable (false, false);             // synth editors drive their own size; window follows
+    setContentOwned (editor, true);          // takes ownership; window tracks the editor's size,
+                                             // so a synth that resizes its own GUI resizes this window
+    setResizable (false, false);             // no user drag-resize; content drives the size
     centreWithSize (getWidth(), getHeight());
     setVisible (true);
 }

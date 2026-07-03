@@ -61,6 +61,7 @@ protected:
 private:
     std::unique_ptr<juce::AudioProcessor> inner;
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
+    std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;
     double preparedSampleRate = 0.0;
     int preparedBlockSize = 0;
