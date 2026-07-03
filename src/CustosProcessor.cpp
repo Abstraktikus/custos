@@ -2,6 +2,7 @@
 #include "SynthLoader.h"
 #include "HostTrace.h"
 #include "SynthWindow.h"
+#include "CustosEditor.h"
 
 namespace custos
 {
@@ -37,6 +38,11 @@ CustosProcessor::~CustosProcessor()
 {
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
+}
+
+juce::AudioProcessorEditor* CustosProcessor::createEditor()
+{
+    return new CustosEditor (*this);
 }
 
 void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInner)

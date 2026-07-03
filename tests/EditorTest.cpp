@@ -40,3 +40,12 @@ TEST_CASE ("innerSynthName reflects the attached inner processor")
     proc.attachInner (std::make_unique<custos::test::FakeInnerProcessor> (2));
     REQUIRE (proc.innerSynthName() == "FakeInner");
 }
+
+TEST_CASE ("CustosProcessor has an editor and creates a non-null CustosEditor")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CustosProcessor proc;
+    REQUIRE (proc.hasEditor());
+    std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
+    REQUIRE (ed != nullptr);
+}
