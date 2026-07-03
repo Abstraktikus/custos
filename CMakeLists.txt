@@ -55,8 +55,8 @@ juce_add_plugin(Custos
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    VST3_CATEGORIES "Instrument"
-    COPY_PLUGIN_STEP FALSE)
+    COPY_PLUGIN_AFTER_BUILD FALSE
+    VST3_CATEGORIES Instrument Synth)
 target_sources(Custos PRIVATE src/PluginEntry.cpp)
 target_link_libraries(Custos PRIVATE custos_core juce::juce_recommended_config_flags)
 # VST3-only plugin, never shipped as VST2 -> disable VST2 replacement so JUCE doesn't
