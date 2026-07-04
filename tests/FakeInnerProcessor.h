@@ -21,7 +21,7 @@ public:
     const juce::String getName() const override { return "FakeInner"; }
     void prepareToPlay (double sr, int block) override
         { prepared = true; lastSampleRate = sr; lastBlock = block; }
-    void releaseResources() override { prepared = false; }
+    void releaseResources() override { prepared = false; ++releaseCalls; if (releaseSink != nullptr) ++*releaseSink; }
     void processBlock (juce::AudioBuffer<float>& b, juce::MidiBuffer& m) override
     {
         ++processCalls;
@@ -45,5 +45,7 @@ public:
     bool prepared = false;
     double lastSampleRate = 0.0;
     int lastBlock = 0, processCalls = 0, lastNumMidi = 0;
+    int releaseCalls = 0;
+    int* releaseSink = nullptr;   // optional external counter that outlives this object (for swap tests)
 };
 }

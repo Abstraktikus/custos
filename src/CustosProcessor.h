@@ -10,15 +10,19 @@ namespace custos
 {
 class SynthWindow;   // forward declaration (unique_ptr member; defined in SynthWindow.h)
 
+struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
+
 class CustosProcessor : public juce::AudioProcessor
 {
 public:
     CustosProcessor();
     ~CustosProcessor() override;
 
-    // Takes ownership of an inner processor, binds the facade to it, and prepares it
-    // if this processor is already prepared. Pass nullptr to detach.
-    void attachInner (std::unique_ptr<juce::AudioProcessor> newInner);
+    // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
+    bool loadInner (std::unique_ptr<juce::AudioProcessor> newInner);
+    CommandResult load (const juce::String& path);
+    void clear();
+    void attachInner (std::unique_ptr<juce::AudioProcessor> newInner) { loadInner (std::move (newInner)); }
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -62,6 +66,8 @@ private:
     void refreshEditor();   // refresh the active CustosEditor (if any) after a window state change
 
     std::unique_ptr<juce::AudioProcessor> inner;
+    juce::SpinLock swapLock;          // guards the inner-pointer swap vs the audio thread
+    juce::String   currentSynthPath;  // path of the loaded synth ("" = none); persisted
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;

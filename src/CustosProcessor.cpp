@@ -19,16 +19,13 @@ CustosProcessor::CustosProcessor()
         facade.push_back (p);
     }
 
-    // M1: load a single hard-coded synth at boot. Empty path => silent passthrough.
+    // Dev/headless default: load a hard-coded synth at boot if one is configured. In production the
+    // synth arrives via setStateInformation (gig) or an OSC /custos/load — both call load() too.
     const auto path = hardcodedSynthPath();
     if (path.isNotEmpty())
     {
-        juce::String error;
-        // Placeholder rate/block; prepareToPlay re-prepares with the host's real values.
-        if (auto instance = SynthLoader::loadVST3 (path, 44100.0, 512, error))
-            attachInner (std::move (instance));
-        else
-            juce::Logger::writeToLog ("Custos: inner synth load failed: " + error);
+        const auto r = load (path);
+        if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
 
     trace ("ctor: end, boundCount=" + juce::String (boundCount));
@@ -45,27 +42,55 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
     return new CustosEditor (*this);
 }
 
-void CustosProcessor::attachInner (std::unique_ptr<juce::AudioProcessor> newInner)
+bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner)
 {
-    // M1 contract: called once, from the constructor, on the message thread, before the host
-    // starts processing. TODO(M4 glitch-free swap): a runtime swap must (a) bypass the audio
-    // thread around the exchange and (b) call releaseResources() on the OUTGOING inner before
-    // it is destroyed. processBlock reads `inner` (and getTailLengthSeconds too) without
-    // synchronization, so an unguarded second call here is a use-after-free on the audio thread.
-    InnerBinding::unbindAll (facade);
-    inner = std::move (newInner);
-    boundCount = 0;
+    // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
+    hideSynthWindow();
 
-    if (inner != nullptr)
+    // Slow work OUTSIDE the lock: prepare the incoming inner to the current play config.
+    if (newInner != nullptr && isPrepared)
     {
-        boundCount = InnerBinding::bind (*inner, facade);
-        if (isPrepared)
-        {
-            inner->setPlayConfigDetails (0, getTotalNumOutputChannels(),
-                                         preparedSampleRate, preparedBlockSize);
-            inner->prepareToPlay (preparedSampleRate, preparedBlockSize);
-        }
+        newInner->setPlayConfigDetails (0, getTotalNumOutputChannels(), preparedSampleRate, preparedBlockSize);
+        newInner->prepareToPlay (preparedSampleRate, preparedBlockSize);
     }
+
+    // Fast pointer/bind swap INSIDE the lock — the audio thread's try-lock misses at most one block.
+    std::unique_ptr<juce::AudioProcessor> oldInner;
+    {
+        const juce::SpinLock::ScopedLockType sl (swapLock);
+        InnerBinding::unbindAll (facade);
+        oldInner = std::move (inner);
+        inner = std::move (newInner);
+        boundCount = (inner != nullptr) ? InnerBinding::bind (*inner, facade) : 0;
+    }
+
+    // Slow teardown OUTSIDE the lock.
+    if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
+
+    refreshEditor();
+    return inner != nullptr;
+}
+
+CommandResult CustosProcessor::load (const juce::String& path)
+{
+    const double sr    = preparedSampleRate > 0.0 ? preparedSampleRate : 44100.0;
+    const int    block = preparedBlockSize  > 0   ? preparedBlockSize  : 512;
+
+    juce::String err;
+    if (auto instance = SynthLoader::loadVST3 (path, sr, block, err))
+    {
+        loadInner (std::move (instance));
+        currentSynthPath = path;
+        return { true, boundCount, "loaded " + path };
+    }
+    // Load failed: keep whatever is currently loaded.
+    return { false, boundCount, "error " + err };
+}
+
+void CustosProcessor::clear()
+{
+    currentSynthPath = {};
+    loadInner (nullptr);
 }
 
 void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -90,10 +115,11 @@ void CustosProcessor::releaseResources()
 
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
-    if (inner != nullptr)
+    const juce::SpinLock::ScopedTryLockType tl (swapLock);
+    if (tl.isLocked() && inner != nullptr)
         inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
     else
-        buffer.clear();
+        buffer.clear();                        // no synth, or a swap is in progress -> silence
 }
 
 bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
