@@ -821,11 +821,13 @@ git commit -m "Addressing core: OSC server binds BASE+N, N-tagged replies, hello
 
 - [ ] **Step 1: Add the field to src/CustosEditor.h**
 
-Add a member (after `synthButton`):
+Add members + a private helper declaration (after `synthButton`, above the `JUCE_DECLARE_...` macro):
 ```cpp
     juce::Label      idLabel;      // "Id" caption
     juce::TextEditor idField;      // operator types N (1..15)
     juce::Label      idStatus;     // ":<port>" or a collision / unassigned warning
+
+    void commitIdentity();
 ```
 
 - [ ] **Step 2: Wire the field in src/CustosEditor.cpp — constructor**

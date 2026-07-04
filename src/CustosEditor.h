@@ -27,6 +27,11 @@ private:
     juce::Label      titleLabel;
     juce::Label      statusLabel;
     juce::TextButton synthButton { "Show Synth" };
+    juce::Label      idLabel;      // "Id" caption
+    juce::TextEditor idField;      // operator types N (1..15)
+    juce::Label      idStatus;     // ":<port>" or a collision / unassigned warning
+
+    void commitIdentity();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosEditor)
 };
