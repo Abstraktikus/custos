@@ -5,6 +5,7 @@
 #include "CustosEditor.h"
 #include "StateCodec.h"
 #include "CustosOscServer.h"
+#include "OscContract.h"
 
 namespace custos
 {
@@ -48,7 +49,7 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
     return new CustosEditor (*this);
 }
 
-bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner)
+bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     hideSynthWindow();
@@ -73,7 +74,9 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner)
     // Slow teardown OUTSIDE the lock.
     if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
 
+    currentSynthPath = (inner != nullptr) ? path : juce::String();
     refreshEditor();
+    emitLoaded();
     return inner != nullptr;
 }
 
@@ -85,8 +88,7 @@ CommandResult CustosProcessor::load (const juce::String& path)
     juce::String err;
     if (auto instance = SynthLoader::loadVST3 (path, sr, block, err))
     {
-        loadInner (std::move (instance));
-        currentSynthPath = path;
+        loadInner (std::move (instance), path);
         return { true, boundCount, "loaded " + path };
     }
     // Load failed: keep whatever is currently loaded.
@@ -95,8 +97,28 @@ CommandResult CustosProcessor::load (const juce::String& path)
 
 void CustosProcessor::clear()
 {
-    currentSynthPath = {};
-    loadInner (nullptr);
+    loadInner (nullptr, {});
+}
+
+void CustosProcessor::emitLoaded()
+{
+    if (outboundSink)
+        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount));
+}
+
+void CustosProcessor::bindOsc()
+{
+    if (oscServer != nullptr)
+        lastBindOk = oscServer->bindToIdentity (identityN);
+    else
+        lastBindOk = false;
+}
+
+void CustosProcessor::setIdentity (int n)
+{
+    identityN = n;
+    bindOsc();          // no-op inner details when oscServer is null (unit tests)
+    refreshEditor();
 }
 
 void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -180,7 +202,7 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     trace ("getStateInformation");
     juce::MemoryBlock innerChunk;
     if (inner != nullptr) inner->getStateInformation (innerChunk);
-    dest = serializeState (currentSynthPath, innerChunk, 0);
+    dest = serializeState (currentSynthPath, innerChunk, identityN);
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
@@ -189,14 +211,20 @@ void CustosProcessor::setStateInformation (const void* data, int size)
     PersistedState ps;
     if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
 
+    identityN = ps.identityN;                    // tag emissions correctly before any load/clear
+
     if (ps.path.isEmpty())
     {
         clear();
-        return;
+    }
+    else
+    {
+        const auto r = load (ps.path);           // safe swap + currentSynthPath + /custos/loaded
+        if (r.ok && inner != nullptr && ps.innerState.getSize() > 0)
+            inner->setStateInformation (ps.innerState.getData(), (int) ps.innerState.getSize());
     }
 
-    const auto r = load (ps.path);                // safe swap + currentSynthPath
-    if (r.ok && inner != nullptr && ps.innerState.getSize() > 0)
-        inner->setStateInformation (ps.innerState.getData(), (int) ps.innerState.getSize());
+    bindOsc();                                   // bind BASE+N + announce /custos/here (reflects current inner)
+    refreshEditor();
 }
 }

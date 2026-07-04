@@ -3,8 +3,10 @@
 #include "Config.h"
 #include "FacadeParameter.h"
 #include "InnerBinding.h"
+#include <juce_osc/juce_osc.h>
 #include <vector>
 #include <memory>
+#include <functional>
 
 namespace custos
 {
@@ -20,10 +22,19 @@ public:
     ~CustosProcessor() override;
 
     // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
-    bool loadInner (std::unique_ptr<juce::AudioProcessor> newInner);
+    bool loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path = {});
     CommandResult load (const juce::String& path);
     void clear();
     void attachInner (std::unique_ptr<juce::AudioProcessor> newInner) { loadInner (std::move (newInner)); }
+
+    // Addressing core (message thread). N in 1..15; 0 = unassigned.
+    void setIdentity (int n);
+    int  identity() const noexcept { return identityN; }
+    bool identityBound() const noexcept { return lastBindOk; }
+    juce::String modeString() const noexcept { return "replace"; }   // real toggle = F2
+
+    // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
+    std::function<void(const juce::OSCMessage&)> outboundSink;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -69,6 +80,10 @@ private:
     std::unique_ptr<juce::AudioProcessor> inner;
     juce::SpinLock swapLock;          // guards the inner-pointer swap vs the audio thread
     juce::String   currentSynthPath;  // path of the loaded synth ("" = none); persisted
+    int  identityN = 0;        // operator-set; 0 = unassigned. Persisted (CUS v2).
+    bool lastBindOk = false;   // did the OSC receiver bind BASE+N?
+    void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
+    void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free

@@ -18,14 +18,20 @@ public:
     explicit CustosOscServer (CustosProcessor&);
     ~CustosOscServer() override;
 
+    // (Re)bind the OSC receiver to BASE+n. Returns false on invalid n or a port clash (N collision).
+    // On success, announces /custos/here. Message thread only.
+    bool bindToIdentity (int n);
+
 private:
     void oscMessageReceived (const juce::OSCMessage&) override;
     void ack (const juce::String& text);
+    void announceHere();
 
     CustosProcessor& proc;
     juce::OSCReceiver receiver;
     juce::OSCSender   ackSender;
     bool ackReady = false;
+    int  currentN = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosOscServer)
 };

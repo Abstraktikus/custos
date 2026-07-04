@@ -1,5 +1,6 @@
 #include "CustosOscServer.h"
 #include "CustosProcessor.h"
+#include "OscContract.h"
 
 #ifndef CUSTOS_OSC_PORT
  #define CUSTOS_OSC_PORT 9100
@@ -31,26 +32,51 @@ Command parseCommand (const juce::OSCMessage& msg)
 
 CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
 {
-    if (receiver.connect (CUSTOS_OSC_PORT))
-        receiver.addListener (this);
-    else
-        juce::Logger::writeToLog ("Custos: OSC receiver could not bind port "
-                                  + juce::String (CUSTOS_OSC_PORT));
-
     ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);
+    proc.outboundSink = [this] (const juce::OSCMessage& m) { if (ackReady) ackSender.send (m); };
 }
 
 CustosOscServer::~CustosOscServer()
 {
+    proc.outboundSink = nullptr;
     receiver.removeListener (this);
     receiver.disconnect();
     ackSender.disconnect();
 }
 
+bool CustosOscServer::bindToIdentity (int n)
+{
+    receiver.removeListener (this);
+    receiver.disconnect();
+    currentN = n;
+
+    const int port = oscPortForIdentity (n);
+    if (port == 0)
+        return false;                      // unassigned / out of range -> no OSC-in
+
+    if (! receiver.connect (port))
+    {
+        juce::Logger::writeToLog ("Custos: OSC port " + juce::String (port)
+                                  + " in use (N collision, N=" + juce::String (n) + ")");
+        return false;                      // N collision -> UI shows a warning; no auto-fallback
+    }
+
+    receiver.addListener (this);
+    announceHere();
+    return true;
+}
+
+void CustosOscServer::announceHere()
+{
+    if (ackReady)
+        ackSender.send (buildHere (currentN, proc.modeString(), proc.innerSynthName(),
+                                   proc.boundParamCount(), oscPortForIdentity (currentN)));
+}
+
 void CustosOscServer::ack (const juce::String& text)
 {
     if (ackReady)
-        ackSender.send ("/custos/ack", text);
+        ackSender.send (buildAck (currentN, text));
 }
 
 void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
@@ -68,6 +94,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::Clear:
             proc.clear();
             ack ("cleared");
+            break;
+        case Command::Hello:
+            announceHere();
             break;
         case Command::Unknown:
         default:

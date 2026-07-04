@@ -609,6 +609,9 @@ void CustosProcessor::setStateInformation (const void* data, int size)
 Add `AddressingTest.cpp` to `tests/CMakeLists.txt` (`add_executable` list).
 Run (PowerShell): `.\scripts\ci.cmd`
 Expected: all tests PASS (M1/M2/M3 + StateCodec v2 + OscContract + the 4 new Addressing tests). Build pristine.
+**Note:** `bindOsc()` here calls `CustosOscServer::bindToIdentity` (declared in Task 4). Tasks 3 and 4 are
+**compile-coupled** — the tree builds green only once Task 4's header declaration is in place. Implement
+Task 4 immediately after Task 3 and build them together (commit may be combined).
 
 - [ ] **Step 7: Commit**
 

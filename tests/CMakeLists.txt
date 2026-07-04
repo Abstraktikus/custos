@@ -14,7 +14,8 @@ add_executable(custos_tests
     SwapTest.cpp
     StateCodecTest.cpp
     OscCommandTest.cpp
-    OscContractTest.cpp)
+    OscContractTest.cpp
+    AddressingTest.cpp)
 target_include_directories(custos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(custos_tests PRIVATE custos_core Catch2::Catch2WithMain)
 
