@@ -171,14 +171,11 @@ and add to the assignment block:
     return true;
 ```
 
-Then update the one existing call site so the tree still compiles: in `src/CustosProcessor.cpp`, change
-```cpp
-    dest = serializeState (currentSynthPath, innerChunk);
-```
-to (Task 3 replaces the `0` with the real `identityN`):
-```cpp
-    dest = serializeState (currentSynthPath, innerChunk, 0);
-```
+Then update the existing call sites so the tree still compiles:
+- `src/CustosProcessor.cpp`: change `dest = serializeState (currentSynthPath, innerChunk);` to
+  `dest = serializeState (currentSynthPath, innerChunk, 0);` (Task 3 replaces the `0` with the real `identityN`).
+- `tests/StateCodecTest.cpp`: the two **existing** M3 tests call `serializeState` with 2 args — add a `0`
+  third arg to both: `serializeState (path, inner, 0)` and `serializeState ({}, {}, 0)`.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 

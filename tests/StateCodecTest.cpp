@@ -17,7 +17,7 @@ TEST_CASE ("serializeState/parseState round-trips path + inner chunk")
     const juce::String path = "C:/Program Files/Common Files/VST3/CS-80 V4.vst3";
     const auto inner = mbFromString ("inner-state-bytes");
 
-    const auto blob = serializeState (path, inner);
+    const auto blob = serializeState (path, inner, 0);
     PersistedState out;
     REQUIRE (parseState (blob.getData(), (int) blob.getSize(), out));
     REQUIRE (out.path == path);
@@ -27,7 +27,7 @@ TEST_CASE ("serializeState/parseState round-trips path + inner chunk")
 
 TEST_CASE ("serializeState/parseState handles the no-synth (empty) case")
 {
-    const auto blob = serializeState ({}, {});
+    const auto blob = serializeState ({}, {}, 0);
     PersistedState out;
     REQUIRE (parseState (blob.getData(), (int) blob.getSize(), out));
     REQUIRE (out.path.isEmpty());
@@ -55,4 +55,30 @@ TEST_CASE ("getStateInformation embeds the inner synth's chunk")
     REQUIRE (out.path.isEmpty());   // no real load() ran, so currentSynthPath is empty
     REQUIRE (juce::String::fromUTF8 ((const char*) out.innerState.getData(),
                                      (int) out.innerState.getSize()) == "fake-state");
+}
+
+TEST_CASE ("serializeState/parseState round-trips identity N (v2)")
+{
+    const auto blob = serializeState ("C:/x/Diva.vst3", {}, 7);
+    PersistedState out;
+    REQUIRE (parseState (blob.getData(), (int) blob.getSize(), out));
+    REQUIRE (out.path == "C:/x/Diva.vst3");
+    REQUIRE (out.identityN == 7);
+}
+
+TEST_CASE ("parseState reads a v1 blob with identityN defaulting to 0")
+{
+    // A hand-built v1 blob: "CUS1" + version 1 + empty path + empty inner (no N field).
+    juce::MemoryBlock mb;
+    juce::MemoryOutputStream os (mb, false);
+    os.write ("CUS1", 4);
+    os.writeByte (1);
+    os.writeInt (0);   // pathLen
+    os.writeInt (0);   // innerLen
+    os.flush();
+
+    PersistedState out;
+    REQUIRE (parseState (mb.getData(), (int) mb.getSize(), out));
+    REQUIRE (out.path.isEmpty());
+    REQUIRE (out.identityN == 0);
 }

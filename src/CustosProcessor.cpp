@@ -180,7 +180,7 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     trace ("getStateInformation");
     juce::MemoryBlock innerChunk;
     if (inner != nullptr) inner->getStateInformation (innerChunk);
-    dest = serializeState (currentSynthPath, innerChunk);
+    dest = serializeState (currentSynthPath, innerChunk, 0);
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
