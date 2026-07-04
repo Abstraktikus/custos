@@ -35,11 +35,15 @@ so we inject an identity **in-band over MIDI** (which GP delivers to plugin bloc
 SysEx), and derive the OSC address from it.
 
 ### 2.1 Identity is an opaque port offset
-- KM assigns each Custos instance a small integer **`N`** (its role/slot index in KM's model;
-  `N ∈ 0..15`, i.e. up to 16 instances — the MIDI-channel ceiling).
+- **`N` is the positional VST-slot number, 1-based** (GP `VST{n}_GRS` → `N = n`). **Both GP and KM
+  derive it from the rack position — nobody assigns or pushes it** (no Session.txt). `N ∈ 1..15`
+  (up to 15 instances; `base+0` = port 9100 intentionally unused; currently 1..10 populated). Positional
+  identity is **final** — a Custos's identity sticks to its slot; plugins are not moved between slots.
 - **`N` is opaque to Custos** — it carries no musical meaning inside the plugin. Its *only* effect:
-  **Custos binds its OSC receiver to `BASE + N`** (`BASE = 9100` → ports `9100..9115`).
-- KM maps `N ↔ channel/layer/role` in **its own** model. Custos stays logic-free about it.
+  **Custos binds its OSC receiver to `BASE + N`** (`BASE = 9100`; the formula is base-agnostic, so a
+  1-based, non-0-dense range is fine — Custos never assumes 0-dense identities).
+- KM maps `N ↔ channel/layer/role` in **its own** model. Custos stays logic-free about it. GP detects
+  Custos slots by plugin-name match over `BLK_VST[]`.
 
 ### 2.2 Identity injection — CC-pair over MIDI
 GP-Script injects the identity into each Custos block as an adjacent **two-CC handshake** (undefined
@@ -57,10 +61,13 @@ MIDI CCs, low false-trigger risk):
 - **Channel-agnostic:** GP delivers the CC-pair to exactly the intended block (block-targeted
   injection, or a channel only that block receives). Custos accepts it on any channel — the block
   routing is the addressing, not the MIDI channel.
-- **Host-derived, not persisted:** GP-Script re-injects on every GP boot (and at placement). Custos
-  persists **nothing** about its identity — the identity is always the current injection. Before the
-  first injection Custos has **no OSC-in** (no bound port); the injection is the trigger. On binding
-  `BASE+N`, Custos proactively announces `/custos/here` (§3.3) so KM learns it is alive without polling.
+- **Host-derived, not persisted:** GP-Script re-injects on every GP boot (deferred behind GP's
+  boot/snapshot-load window, not synchronous), and on demand via a KM→GP re-arm (`/KM/Custos/Rearm`)
+  for a live plugin swap (GP has no plugin-replaced callback). Custos persists **nothing** about its
+  identity — the identity is always the current injection. Before the first injection Custos has **no
+  OSC-in** (no bound port); the injection is the trigger. On binding `BASE+N`, Custos proactively
+  announces `/custos/here` (§3.3) so KM learns it is alive without polling. The CC-pair is **two
+  separate, sequential messages** (order guaranteed, not one combined event).
 
 ### 2.3 Standalone (no KM / no GP-Script)
 No injection → no OSC address, and none is needed: the user drives Custos through its own UI
@@ -172,11 +179,13 @@ The Custos editor shows, **discreetly**, the assigned identity `N` and the bound
 ---
 
 ## 8. GP-side requirements (cross-project handoff — for the GP session, not Custos code)
-- GP-Script must inject `CC#118=124` + `CC#119=N` (adjacent) into each Custos block, **block-targeted**,
-  on GP boot and at placement. KM assigns `N` per role and coordinates the mapping.
-- **Assumption to confirm:** GP-Script can inject block-targeted CCs to a specific plugin block. Low
-  risk (normal MIDI path; unlike SysEx this is guaranteed delivery), but confirm on the GP side before
-  Phase-C addressing work is E2E'd. Deliver as a copy-paste requirement to the GP session.
+- GP-Script detects Custos slots by plugin-name match over `BLK_VST[]`, derives `N` = the 1-based slot
+  number, and injects `CC#118=124` then `CC#119=N` (two adjacent messages) **block-targeted** via
+  `SendNow(BLK_VST[slot], …)`, on boot (deferred past snapshot-load) and on a KM→GP `/KM/Custos/Rearm`
+  (for live swaps — GP has no plugin-replaced callback). KM derives the same `N` positionally.
+- **CONFIRMED (GP session, 2026-07-04):** block-targeted CC injection works and is empirically tested
+  (`SendNow(BLK_VST[slot], MakeControlChangeMessageEx(...))`, no fan-out, guaranteed delivery). The
+  earlier "assumption to confirm" is resolved.
 
 ---
 
@@ -204,7 +213,8 @@ The Custos editor shows, **discreetly**, the assigned identity `N` and the bound
 ---
 
 ## 11. Open items / assumptions
-- GP-side block-targeted CC injection — confirm with the GP session (§8). Low risk.
-- `protoVer = 1`; `BASE = 9100`, up to 16 instances (`N ∈ 0..15`, MIDI-channel ceiling) → ports `9100..9115`.
+- GP-side block-targeted CC injection — **CONFIRMED** by the GP session (§8).
+- `protoVer = 1`; `BASE = 9100`, 1-based positional `N ∈ 1..15` (up to 15 instances; `base+0`=9100 unused;
+  currently 1..10 populated) → ports `9101..9115`.
 - Config file exact location/format finalised in the F4 spec (default: app-data JSON).
 - F3/F6 window semantics deferred to their own sub-spec.
