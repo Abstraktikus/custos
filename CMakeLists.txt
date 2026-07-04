@@ -19,6 +19,7 @@ add_library(custos_core STATIC
     src/FacadeParameter.cpp
     src/InnerBinding.cpp
     src/SynthLoader.cpp
+    src/StateCodec.cpp
     src/HostTrace.cpp
     src/SynthWindow.cpp
     src/CustosEditor.cpp

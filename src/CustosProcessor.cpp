@@ -3,6 +3,7 @@
 #include "HostTrace.h"
 #include "SynthWindow.h"
 #include "CustosEditor.h"
+#include "StateCodec.h"
 
 namespace custos
 {
@@ -169,13 +170,28 @@ void CustosProcessor::toggleSynthWindow()
     else                        showSynthWindow();
 }
 
-void CustosProcessor::getStateInformation (juce::MemoryBlock&)
+void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
-    trace ("getStateInformation");   // M3 will persist real state here
+    trace ("getStateInformation");
+    juce::MemoryBlock innerChunk;
+    if (inner != nullptr) inner->getStateInformation (innerChunk);
+    dest = serializeState (currentSynthPath, innerChunk);
 }
 
-void CustosProcessor::setStateInformation (const void*, int)
+void CustosProcessor::setStateInformation (const void* data, int size)
 {
-    trace ("setStateInformation");   // M3 will restore real state here
+    trace ("setStateInformation");
+    PersistedState ps;
+    if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
+
+    if (ps.path.isEmpty())
+    {
+        clear();
+        return;
+    }
+
+    const auto r = load (ps.path);                // safe swap + currentSynthPath
+    if (r.ok && inner != nullptr && ps.innerState.getSize() > 0)
+        inner->setStateInformation (ps.innerState.getData(), (int) ps.innerState.getSize());
 }
 }

@@ -39,8 +39,16 @@ public:
     void setCurrentProgram (int) override {}
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
-    void getStateInformation (juce::MemoryBlock&) override {}
-    void setStateInformation (const void*, int) override {}
+    void getStateInformation (juce::MemoryBlock& mb) override
+    {
+        mb.replaceAll (stateMarker.toRawUTF8(), stateMarker.getNumBytesAsUTF8());
+    }
+    void setStateInformation (const void* d, int n) override
+    {
+        restoredMarker = juce::String::fromUTF8 (static_cast<const char*> (d), n);
+    }
+    juce::String stateMarker { "fake-state" };
+    juce::String restoredMarker;
 
     bool prepared = false;
     double lastSampleRate = 0.0;
