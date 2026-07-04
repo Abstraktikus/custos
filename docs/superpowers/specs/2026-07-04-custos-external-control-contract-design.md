@@ -3,7 +3,7 @@
 **Date:** 2026-07-04
 **Status:** Approved (brainstorming complete, ready for planning)
 **Scope:** The **contract** by which Kapellmeister (KM) drives multiple Custos instances from
-outside — instance addressing, the MIDI identity-injection, and the full OSC verb surface. This is
+outside — instance addressing, the identity model, and the full OSC verb surface. This is
 **Phase A** of the Custos-2.0 roadmap. It does **not** implement the features; each feature gets its
 own spec + plan in **Phase C**. Its purpose is to freeze a versioned contract so KM can develop in
 parallel (**Phase B**).
@@ -30,44 +30,25 @@ by KM orchestration (change → GP restart, with warning), **not** by Custos cod
 ## 2. Instance addressing — the core
 
 Multiple Custos instances run inside one GP process. KM must reach a **specific** instance (load a
-synth into the right channel/layer, set its volume, etc.). A VST3 plugin cannot know its host slot,
-so we inject an identity **in-band over MIDI** (which GP delivers to plugin blocks reliably, unlike
-SysEx), and derive the OSC address from it.
+synth into the right channel/layer, set its volume, etc.). A VST3 plugin cannot know its host slot.
+An in-band identity injection was explored (MIDI CC-pair, then a reserved facade param) but proved
+either unreliable in practice or an unwanted exception to "Meta = OSC". Since the rig's slots never
+change, identity is set **once, by hand** — the simplest bulletproof option.
 
-### 2.1 Identity is an opaque port offset
-- **`N` is the positional VST-slot number, 1-based** (GP `VST{n}_GRS` → `N = n`). **Both GP and KM
-  derive it from the rack position — nobody assigns or pushes it** (no Session.txt). `N ∈ 1..15`
-  (up to 15 instances; `base+0` = port 9100 intentionally unused; currently 1..10 populated). Positional
-  identity is **final** — a Custos's identity sticks to its slot; plugins are not moved between slots.
-- **`N` is opaque to Custos** — it carries no musical meaning inside the plugin. Its *only* effect:
-  **Custos binds its OSC receiver to `BASE + N`** (`BASE = 9100`; the formula is base-agnostic, so a
-  1-based, non-0-dense range is fine — Custos never assumes 0-dense identities).
-- KM maps `N ↔ channel/layer/role` in **its own** model. Custos stays logic-free about it. GP detects
-  Custos slots by plugin-name match over `BLK_VST[]`.
+### 2.1 Identity is an operator-set, persisted port offset
+- **`N` is set by the operator in the Custos UI** and **persisted in the instance's own VST state**
+  (it lives in the gig). It is a **one-time** assignment per instance (slots don't move). The VST state
+  is the only per-instance store — two identical Custos blocks can't be told apart by a shared file.
+- **`N` is opaque to Custos** — no musical meaning. Its *only* effect: **Custos binds its OSC receiver
+  to `BASE + N`** (`BASE = 9100`; `N ∈ 1..15`, 1-based; `base+0` = port 9100 unused). On load Custos
+  reads `N` from its state, binds `BASE+N`, and proactively announces `/custos/here` (§3.3) so KM learns
+  it is alive without polling. **Unset → no OSC-in** (the UI shows "unassigned").
+- KM maps `N ↔ channel/layer/role` in **its own** model; the operator aligns each Custos's `N` to match.
+  Custos stays logic-free about it.
 
-### 2.2 Identity injection — CC-pair over MIDI
-GP-Script injects the identity into each Custos block as an adjacent **two-CC handshake** (undefined
-MIDI CCs, low false-trigger risk):
-
-| Message | Meaning |
-|---|---|
-| `CC #118 = 124` (`0x7C`) | **arm** marker |
-| `CC #119 = N` (immediately following) | **payload** — the instance's `N` |
-
-- Custos scans its incoming `MidiBuffer` in `processBlock`. On `CC#118==124` it **arms**; if the very
-  next MIDI event is `CC#119`, it adopts `N = value`, **consumes both** (does **not** forward them to
-  the inner synth), and defers the `(re)bind BASE+N` to the **message thread**. Any other event while
-  armed → **disarm** and pass through untouched.
-- **Channel-agnostic:** GP delivers the CC-pair to exactly the intended block (block-targeted
-  injection, or a channel only that block receives). Custos accepts it on any channel — the block
-  routing is the addressing, not the MIDI channel.
-- **Host-derived, not persisted:** GP-Script re-injects on every GP boot (deferred behind GP's
-  boot/snapshot-load window, not synchronous), and on demand via a KM→GP re-arm (`/KM/Custos/Rearm`)
-  for a live plugin swap (GP has no plugin-replaced callback). Custos persists **nothing** about its
-  identity — the identity is always the current injection. Before the first injection Custos has **no
-  OSC-in** (no bound port); the injection is the trigger. On binding `BASE+N`, Custos proactively
-  announces `/custos/here` (§3.3) so KM learns it is alive without polling. The CC-pair is **two
-  separate, sequential messages** (order guaranteed, not one combined event).
+### 2.2 No identity injection
+There is **no** MIDI/param identity handshake, and **GP-Script has no identity role**. Nothing is
+injected on boot; nothing needs re-arming. Custos simply restores its operator-set `N` from state.
 
 ### 2.3 Standalone (no KM / no GP-Script)
 No injection → no OSC address, and none is needed: the user drives Custos through its own UI
@@ -114,8 +95,9 @@ No injection → no OSC address, and none is needed: the user drives Custos thro
 ## 4. Persistence split
 
 - **Per-instance** (in the VST state, lives in the gig): loaded synth **path** + inner **state chunk**
-  + **mode** flag. State format **`CUS2`** = `CUS1` (magic + ver + path + inner chunk) **+ 1 byte mode**
-  (0=replace default, 1=resident). `CUS1` blobs still parse (mode→replace). Different per instance.
+  + **mode** flag + **identity `N`**. State format **`CUS3`** = `CUS1` (magic + ver + path + inner chunk)
+  **+ 1 byte mode** (0=replace default, 1=resident) **+ 1 byte `N`** (0 = unassigned). `CUS1`/`CUS2`
+  blobs still parse (missing fields default: mode→replace, `N`→unassigned). Different per instance.
 - **Machine-level** (one Custos config file, shared by all instances): the **favorites list** +
   **per-synth volume defaults**. These are identical machine-wide, so they are **not** duplicated into
   every instance's VST state. Written on `/custos/favorites/end`, read on boot. Location: a
@@ -161,9 +143,9 @@ this contract beyond reserving the surface.
 ---
 
 ## 6. UI addition (this contract)
-The Custos editor shows, **discreetly**, the assigned identity `N` and the bound port (e.g.
-`id 3 · :9103`) — a troubleshooting aid so a human can see which instance is which at a glance. Shows
-"unassigned" before the first injection.
+The Custos editor has a small **field to set the identity `N`** (1..15) and shows the bound port (e.g.
+`id 3 · :9103`). The operator assigns `N` here once; it persists in the VST state. Shows "unassigned"
+until set. Doubles as a troubleshooting aid (which instance is which at a glance).
 
 ---
 
@@ -172,40 +154,36 @@ The Custos editor shows, **discreetly**, the assigned identity `N` and the bound
 - Malformed args → ignored with an error ack.
 - Port bind failure (range exhausted / clash) → logged, no OSC-in, no crash; reported in `/custos/here`
   is then absent (KM sees no reply on that port).
-- CC-pair: only an adjacent `#118==124` → `#119` pair adopts `N`; anything else disarms and passes
-  through. The pair is never forwarded to the inner synth.
 - Load failure keeps the current inner (M3).
 
 ---
 
 ## 8. GP-side requirements (cross-project handoff — for the GP session, not Custos code)
-- GP-Script detects Custos slots by plugin-name match over `BLK_VST[]`, derives `N` = the 1-based slot
-  number, and injects `CC#118=124` then `CC#119=N` (two adjacent messages) **block-targeted** via
-  `SendNow(BLK_VST[slot], …)`, on boot (deferred past snapshot-load) and on a KM→GP `/KM/Custos/Rearm`
-  (for live swaps — GP has no plugin-replaced callback). KM derives the same `N` positionally.
-- **CONFIRMED (GP session, 2026-07-04):** block-targeted CC injection works and is empirically tested
-  (`SendNow(BLK_VST[slot], MakeControlChangeMessageEx(...))`, no fan-out, guaranteed delivery). The
-  earlier "assumption to confirm" is resolved.
+- **None.** Identity is set manually in the Custos UI; **GP-Script has no identity role**.
+- History (2026-07-04): an earlier draft had GP inject a block-targeted CC-pair to carry `N`. GP
+  confirmed block-targeted `SendNow` is feasible, but per-instance CC injection proved unreliable in
+  practice, so the approach was dropped in favour of manual UI assignment. **The GP session should stand
+  down on any Custos identity-injection work.**
 
 ---
 
 ## 9. Testing strategy
-- **Unit (hermetic):** extend `parseCommand` for the new verbs; a pure CC-pair parser
-  (arm/adopt/disarm/consume/passthrough) tested against synthetic `MidiBuffer`s; `StateCodec` `CUS2`
-  round-trip + `CUS1` back-compat; config read/write round-trip; volume gain math. Unit tests bind no
-  UDP port and inject no MIDI identity.
-- **E2E (autonomous, driven from outside a live GP):** direct OSC is already proven (M3). New to spike:
-  CC-pair injection actually adopted + `BASE+N` (re)bind + the pair filtered from passthrough; two
-  instances → two distinct ports, each independently addressable; dump paging; `/custos/loaded` on a UI
-  pick. Verify swaps by ack/count (not the host param list).
+- **Unit (hermetic):** extend `parseCommand` for the new verbs; `StateCodec` `CUS3` round-trip (incl.
+  `N`) + `CUS1`/`CUS2` back-compat; config read/write round-trip; volume gain math. Unit tests bind no
+  UDP port.
+- **E2E (autonomous, driven from outside a live GP):** direct OSC is already proven (M3). New to verify:
+  setting `N` in the UI binds `BASE+N` and survives a gig reload; two instances with different `N` → two
+  distinct ports, each independently addressable; dump paging; `/custos/loaded` on a UI pick. Verify
+  swaps by ack/count (not the host param list).
 
 ---
 
 ## 10. Decomposition — Phase C order (each its own spec + plan)
-1. **Addressing core** — CC-pair injection + `BASE+N` bind + N-tagged replies + `/custos/here`
-   (versioned) + `/custos/hello`. *Unblocks all KM addressing.*
+1. **Addressing core** — UI field to set `N` + persist `N` in state + `BASE+N` bind + N-tagged
+   replies + `/custos/here` (versioned) + `/custos/hello`. *Unblocks all KM addressing.* (StateCodec
+   version bump decided in this feature's plan.)
 2. **F1** params dump (ranged).
-3. **F2** mode (`CUS2` + `/custos/mode`).
+3. **F2** mode (persist mode flag + `/custos/mode`).
 4. **F5** volume (gain + config defaults + `/custos/volume`) — depends on the config file.
 5. **F4** favorites (config file + push + UI picker + `/custos/loaded` on UI pick).
 6. **F3/F6** window control — its own sub-spec first.
@@ -213,8 +191,7 @@ The Custos editor shows, **discreetly**, the assigned identity `N` and the bound
 ---
 
 ## 11. Open items / assumptions
-- GP-side block-targeted CC injection — **CONFIRMED** by the GP session (§8).
-- `protoVer = 1`; `BASE = 9100`, 1-based positional `N ∈ 1..15` (up to 15 instances; `base+0`=9100 unused;
-  currently 1..10 populated) → ports `9101..9115`.
+- Identity is operator-set in the Custos UI (no GP injection) — see §2 / §8.
+- `protoVer = 1`; `BASE = 9100`, `N ∈ 1..15` (1-based; `base+0`=9100 unused) → ports `9101..9115`.
 - Config file exact location/format finalised in the F4 spec (default: app-data JSON).
 - F3/F6 window semantics deferred to their own sub-spec.
