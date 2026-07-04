@@ -53,8 +53,8 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/here` | `N, protoVer:int, mode:string, inner:string, boundCount:int, port:int` | hello reply / boot announce |
 | `/custos/ack` | `N, text:string` | command result (see strings below) |
 | `/custos/param` | `N, idx:int, val:float, name:string` | one dumped param |
-| `/custos/params/done` | `N, start:int, count:int` | end of a dump range |
-| `/custos/loaded` | `N, path:string` | inner changed (by OSC **or** UI); empty path = cleared |
+| `/custos/params/done` | `N, start:int, count:int` | end of a dump range; `count` = params **actually sent** (clamped to `boundCount`), `start` echoes the request |
+| `/custos/loaded` | `N, path:string, boundCount:int` | inner changed (OSC **or** UI); empty path = cleared (`boundCount` 0). Carries `boundCount` so KM can dump immediately — no `hello` round-trip |
 
 **Ack strings:** `loaded <path> count=<n>` · `cleared` · `mode <m> (applies after reload)` ·
 `error <msg>`.
@@ -78,14 +78,23 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
   arrived via the favorites push.
 - **Custos loads a synth on a manual UI pick too**, and reports it via `/custos/loaded` — KM stays in
   sync either way.
+- **Favorites are machine-level and shared.** Push once to any one reachable instance (`favorites/begin
+  … end`); Custos writes the shared config and every instance uses it (the receiver immediately, others
+  on next boot / when their picker opens). **No per-instance fan-out.**
+- **No heartbeat.** Custos announces `/custos/here` on bind and answers `/custos/hello`, but sends no
+  keepalive. Re-probing dead/absent instances is KM's job.
+- **N collision:** if two instances share an `N`, the second fails to bind `BASE+N`, shows a **visible
+  UI warning** ("port in use — pick another N"), and does **not** fall back to another port (that would
+  break deterministic addressing). It stays uncontrollable until the operator fixes `N`; KM should
+  surface "expected N not answering".
 
 ---
 
 ## 5. Responsibilities
 
-- **Custos:** everything in §2/§3; a UI field to set `N`; reads the operator-set `N` from its VST state
-  and binds `BASE+N`; persistence (per-instance VST state incl. `N`; machine-level favorites/volume
-  config).
+- **Custos:** everything in §2/§3; a UI field to set `N` (with a visible warning on bind failure / `N`
+  collision); reads the operator-set `N` from its VST state and binds `BASE+N`; persistence (per-instance
+  VST state incl. `N`; machine-level favorites/volume config).
 - **Kapellmeister:** addresses `BASE+N`; keeps the `N ↔ channel/role` map (operator aligns each Custos's
   `N` to match); pushes favorites/volumes; re-binds macros on `/custos/loaded`; checks `protoVer`.
 - **GP-Script:** **no identity role** — identity is set manually in the Custos UI.

@@ -87,8 +87,8 @@ No injection → no OSC address, and none is needed: the user drives Custos thro
 | `/custos/here` | `N, protoVer:int, mode:string, inner:string, boundCount:int, port:int` | hello reply / boot announce (liveness + contract version + status) |
 | `/custos/ack` | `N, text:string` | command ack: `"loaded <path> count=<n>"` \| `"cleared"` \| `"error <msg>"` \| `"mode <m> (applies after reload)"` |
 | `/custos/param` | `N, idx:int, val:float, name:string` | one dumped param (F1 stream) |
-| `/custos/params/done` | `N, start:int, count:int` | end of a dump range |
-| `/custos/loaded` | `N, path:string` | **event** — inner changed by OSC **or** UI; empty path = cleared. Keeps KM's model in sync. |
+| `/custos/params/done` | `N, start:int, count:int` | end of a dump range; `count` = params **actually sent** (clamped to `boundCount`); `start` echoes the request |
+| `/custos/loaded` | `N, path:string, boundCount:int` | **event** — inner changed by OSC **or** UI; empty path = cleared (`boundCount` 0). Carries `boundCount` so KM dumps immediately (no `hello` round-trip). Keeps KM's model in sync. |
 
 ---
 
@@ -102,6 +102,9 @@ No injection → no OSC address, and none is needed: the user drives Custos thro
   **per-synth volume defaults**. These are identical machine-wide, so they are **not** duplicated into
   every instance's VST state. Written on `/custos/favorites/end`, read on boot. Location: a
   user-writable app-data path (e.g. `userApplicationDataDirectory/Custos/favorites.json`), overridable.
+  **Push-once/shared:** KM pushes to any one reachable instance; that instance writes the shared config
+  and reflects it immediately, other instances read it on boot / when their picker opens — no
+  per-instance fan-out.
 
 ---
 
@@ -113,7 +116,9 @@ not 5000) and ends with `/custos/params/done`. Line shape mirrors the GP `PList`
 its parser. Ranged so KM can page and re-request UDP drops. Custos stays dumb — it emits its current
 params; the macro-binding architecture (ctrlmap, batch-update when a `*.ctrlmap.txt` exists) is 100%
 KM-side. **Note for KM:** facade index is stable but **not** semantically stable across synth swaps —
-`custos_5` points at a *different* parameter after a swap → KM must re-bind macros on inner change.
+`custos_5` points at a *different* parameter after a swap → KM must re-bind macros on inner change. The
+dump **clamps** the requested range to `[0, boundCount)`; `/custos/params/done` reports the **actual**
+count sent (not an echo of the request) so KM can verify completeness and detect UDP drops.
 
 ### 5.2 F2 — Mode (Joker/replace ↔ Resident)
 Default = **replace** (fixed 5000 facade; the workaround that lets a swap happen at all in
@@ -132,7 +137,8 @@ volume sits. Meta = OSC: the trim is **not** a facade param.
 KM pushes the favorites list over OSC (§3.2); Custos persists it to the machine config (§4) and shows
 it in its editor as a ranked picker (by `favOrder`). **Custos loads a synth only on a manual UI pick**
 — before that, pure external-control focus, no eager loading. A UI pick emits `/custos/loaded` (§3.3)
-so KM stays in sync. No VstDatabase parser in Custos (data arrives via OSC).
+so KM stays in sync. No VstDatabase parser in Custos (data arrives via OSC). The favorites store is
+machine-level and shared (§4): one push reaches all instances — no per-instance fan-out.
 
 ### 5.5 F3 / F6 — Window control
 Verbs reserved (§3.2): show Custos-GUI / plugin-GUI / both / hide, and pixel-exact rect + movable
@@ -145,15 +151,20 @@ this contract beyond reserving the surface.
 ## 6. UI addition (this contract)
 The Custos editor has a small **field to set the identity `N`** (1..15) and shows the bound port (e.g.
 `id 3 · :9103`). The operator assigns `N` here once; it persists in the VST state. Shows "unassigned"
-until set. Doubles as a troubleshooting aid (which instance is which at a glance).
+until set. Doubles as a troubleshooting aid (which instance is which at a glance). On bind failure
+(`N` collision — another instance already holds `BASE+N`) it shows a **visible warning** ("port in use
+— pick another `N`"); Custos does **not** auto-fall-back to another port.
 
 ---
 
 ## 7. Error handling
 - Unknown OSC address → `/custos/ack <N> "error unknown <addr>"`, no crash.
 - Malformed args → ignored with an error ack.
-- Port bind failure (range exhausted / clash) → logged, no OSC-in, no crash; reported in `/custos/here`
-  is then absent (KM sees no reply on that port).
+- **`N` collision / port bind failure** → logged **+ a visible UI warning** ("port in use — pick
+  another N"); no OSC-in, **no auto-fallback** (that would break deterministic addressing), no crash.
+  `/custos/here` is then absent → KM sees no reply on `BASE+N` and surfaces "expected N not answering".
+- **No heartbeat (v1):** Custos announces `/custos/here` on bind and answers `/custos/hello`; it sends
+  no keepalive. KM re-probes; a dead/absent instance is detected on the next probe.
 - Load failure keeps the current inner (M3).
 
 ---
