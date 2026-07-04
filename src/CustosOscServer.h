@@ -1,0 +1,32 @@
+#pragma once
+#include <juce_osc/juce_osc.h>
+
+namespace custos
+{
+class CustosProcessor;
+
+struct Command { enum Kind { Load, Clear, Unknown } kind = Unknown; juce::String path; };
+
+// Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.
+Command parseCommand (const juce::OSCMessage& msg);
+
+// Binds CUSTOS_OSC_PORT, turns /custos/load|/custos/clear into processor calls, acks to KM.
+// Owned by CustosProcessor. A failed bind is logged, not fatal.
+class CustosOscServer : private juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>
+{
+public:
+    explicit CustosOscServer (CustosProcessor&);
+    ~CustosOscServer() override;
+
+private:
+    void oscMessageReceived (const juce::OSCMessage&) override;
+    void ack (const juce::String& text);
+
+    CustosProcessor& proc;
+    juce::OSCReceiver receiver;
+    juce::OSCSender   ackSender;
+    bool ackReady = false;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosOscServer)
+};
+}

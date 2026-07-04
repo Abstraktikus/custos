@@ -8,14 +8,15 @@
 
 namespace custos
 {
-class SynthWindow;   // forward declaration (unique_ptr member; defined in SynthWindow.h)
+class SynthWindow;       // forward declaration (unique_ptr member; defined in SynthWindow.h)
+class CustosOscServer;   // forward declaration (unique_ptr member; defined in CustosOscServer.h)
 
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
 
 class CustosProcessor : public juce::AudioProcessor
 {
 public:
-    CustosProcessor();
+    explicit CustosProcessor (bool enableOsc = false);
     ~CustosProcessor() override;
 
     // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
@@ -69,6 +70,7 @@ private:
     juce::SpinLock swapLock;          // guards the inner-pointer swap vs the audio thread
     juce::String   currentSynthPath;  // path of the loaded synth ("" = none); persisted
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
+    std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;
     double preparedSampleRate = 0.0;

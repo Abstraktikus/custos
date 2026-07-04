@@ -23,7 +23,8 @@ add_library(custos_core STATIC
     src/HostTrace.cpp
     src/SynthWindow.cpp
     src/CustosEditor.cpp
-    src/CustosProcessor.cpp)
+    src/CustosProcessor.cpp
+    src/CustosOscServer.cpp)
 target_include_directories(custos_core PUBLIC src)
 target_compile_features(custos_core PUBLIC cxx_std_17)
 target_compile_definitions(custos_core PUBLIC
@@ -31,10 +32,15 @@ target_compile_definitions(custos_core PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_STRICT_REFCOUNTEDPOINTER=1)
+target_compile_definitions(custos_core PUBLIC
+    CUSTOS_OSC_PORT=9100
+    CUSTOS_ACK_HOST="127.0.0.1"
+    CUSTOS_ACK_PORT=8000)
 target_link_libraries(custos_core
     PUBLIC
         juce::juce_audio_processors
         juce::juce_gui_basics
+        juce::juce_osc
     PRIVATE
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)

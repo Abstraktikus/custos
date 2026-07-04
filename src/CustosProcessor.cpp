@@ -4,10 +4,11 @@
 #include "SynthWindow.h"
 #include "CustosEditor.h"
 #include "StateCodec.h"
+#include "CustosOscServer.h"
 
 namespace custos
 {
-CustosProcessor::CustosProcessor()
+CustosProcessor::CustosProcessor (bool enableOsc)
     : juce::AudioProcessor (BusesProperties()
         .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
@@ -29,11 +30,15 @@ CustosProcessor::CustosProcessor()
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
 
+    if (enableOsc)
+        oscServer = std::make_unique<CustosOscServer> (*this);
+
     trace ("ctor: end, boundCount=" + juce::String (boundCount));
 }
 
 CustosProcessor::~CustosProcessor()
 {
+    oscServer.reset();                  // stop OSC callbacks before tearing down the rest
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
 }
