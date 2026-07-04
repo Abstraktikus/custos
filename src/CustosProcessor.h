@@ -49,7 +49,12 @@ public:
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override
-        { return inner != nullptr ? inner->getTailLengthSeconds() : 0.0; }
+    {
+        // Guarded like processBlock: the host may query this on the audio thread while a swap
+        // (loadInner) is mid-flight on the message thread — reading `inner` unguarded is a data race.
+        const juce::SpinLock::ScopedTryLockType tl (swapLock);
+        return (tl.isLocked() && inner != nullptr) ? inner->getTailLengthSeconds() : 0.0;
+    }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -78,7 +83,7 @@ private:
     void refreshEditor();   // refresh the active CustosEditor (if any) after a window state change
 
     std::unique_ptr<juce::AudioProcessor> inner;
-    juce::SpinLock swapLock;          // guards the inner-pointer swap vs the audio thread
+    mutable juce::SpinLock swapLock;  // guards the inner-pointer swap vs the audio thread (also getTailLengthSeconds)
     juce::String   currentSynthPath;  // path of the loaded synth ("" = none); persisted
     int  identityN = 0;        // operator-set; 0 = unassigned. Persisted (CUS v2).
     bool lastBindOk = false;   // did the OSC receiver bind BASE+N?
