@@ -35,6 +35,17 @@ swap that **tore down the outgoing synth mid-restore** while the host queried th
 - The race is nonetheless real for **live OSC swaps** (which always have an outgoing synth). Fixed:
   `getTailLengthSeconds()` now try-locks `swapLock` like `processBlock` (`swapLock` made `mutable`).
 
-## Not run
-- **N collision** (two instances set to the same N → second fails to bind, shows the UI warning) — needs
-  a second Custos instance in a GP slot.
+## Multi-instance + collision (2nd Custos in GRS_VST8)
+| Step | Result |
+|---|---|
+| Two instances, distinct N | `:9108` → `[8,1,replace,(none),0,9108]` and `:9109` → `[9,1,replace,CS-80 V4,2797,9109]` — no cross-talk ✓ |
+| **N collision** (2nd set to N=9, same as 1st) | `:9109` returns exactly ONE reply (the 1st); `:9108` goes silent (2nd released it on the failed bind); 2nd's UI shows "PORT IN USE — pick another N" ✓ |
+
+**Addressing core is fully E2E-verified.**
+
+## UX bug found + fixed
+The `N` field committed only on focus-loss / Enter. With **no synth loaded** the "Show Synth" button is
+disabled, so there was no other focusable control to click → the field was a focus trap with no commit
+path (Enter was host-unreliable; the operator committed via GP's bypass button). Fixed: the field now
+commits on **every edit** (`onTextChange`) — robust, no focus dance. `refresh()` no longer rewrites the
+field (that fought the user mid-typing); it is seeded from `proc.identity()` in the constructor.

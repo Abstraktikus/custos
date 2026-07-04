@@ -27,9 +27,13 @@ CustosEditor::CustosEditor (CustosProcessor& p)
 
     idField.setInputRestrictions (2, "0123456789");
     idField.setJustification (juce::Justification::centred);
-    idField.onReturnKey = [this] { commitIdentity(); };
-    idField.onFocusLost = [this] { commitIdentity(); };
+    // Commit on every edit — a plugin editor can't rely on focus-loss (with no synth loaded there may
+    // be no other focusable control to click, and Enter is host-dependent). onTextChange is robust.
+    idField.onTextChange = [this] { commitIdentity(); };
+    idField.onReturnKey  = [this] { commitIdentity(); };
     addAndMakeVisible (idField);
+    { const int n0 = proc.identity();
+      idField.setText ((n0 >= 1 && n0 <= 15) ? juce::String (n0) : juce::String(), juce::dontSendNotification); }
 
     idStatus.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (idStatus);
@@ -54,9 +58,8 @@ void CustosEditor::refresh()
                           juce::dontSendNotification);
     else
         idStatus.setText (":" + juce::String (oscPortForIdentity (n)), juce::dontSendNotification);
-
-    const juce::String nText = (n >= 1 && n <= 15) ? juce::String (n) : juce::String();
-    if (idField.getText() != nText) idField.setText (nText, juce::dontSendNotification);
+    // NOTE: refresh() deliberately does NOT rewrite idField — that would fight the user mid-typing.
+    // The field is seeded from proc.identity() in the constructor and owned by the user thereafter.
 }
 
 void CustosEditor::commitIdentity()
