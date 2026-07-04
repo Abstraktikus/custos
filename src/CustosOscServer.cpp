@@ -24,6 +24,8 @@ Command parseCommand (const juce::OSCMessage& msg)
     }
     if (addr == "/custos/clear")
         return { Command::Clear, {} };
+    if (addr == "/custos/hello")
+        return { Command::Hello, {} };
     return { Command::Unknown, {} };
 }
 
