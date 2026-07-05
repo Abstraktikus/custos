@@ -28,20 +28,28 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
     void refresh();
+    void updateRectReadout();   // update only the x/y/w/h fields from the live window rect (cheap; drag-safe)
 
 private:
     void commitIdentity();
     void rebuildInstrumentList();
     bool idVisible() const;
+    void scaleWindow (double factor);   // scale the synth window's current rect proportionally (keeps top-left)
 
     CustosProcessor& proc;
 
     ClickableLabel   brandLabel;   // "Brand" — double-click reveals the identity field
     juce::ComboBox   brandFilter;
 
-    juce::Label      instrLabel;   // "Instrument"
+    ClickableLabel   instrLabel;   // "Instrument" — double-click closes the synth window (hidden feature)
     juce::ComboBox   favPicker;
     juce::TextButton openButton { "Open" };
+
+    juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
+    juce::ToggleButton testMovable { "movable" };
+    juce::ToggleButton testClamp   { "clamp" };    // constrain to monitor work area (config phase)
+    juce::TextButton   openFixedButton { "Open fixed" };
+    juce::TextButton   scaleDown { "-" }, scaleUp { "+" };   // proportional resize of the synth window
 
     juce::Label      volumeLabel;  // "Volume"
     juce::Slider     volumeFader { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };

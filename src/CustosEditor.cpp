@@ -1,5 +1,6 @@
 #include "CustosEditor.h"
 #include "CustosProcessor.h"
+#include <cmath>
 
 namespace custos
 {
@@ -14,8 +15,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     brandFilter.onChange = [this] { rebuildInstrumentList(); };   // re-filter only; never loads
     addAndMakeVisible (brandFilter);
 
-    // Instrument picker + open.
+    // Instrument picker + open. Double-clicking the label toggles the synth window (hidden feature).
     instrLabel.setText ("Instrument", juce::dontSendNotification);
+    instrLabel.setInterceptsMouseClicks (true, false);
+    instrLabel.onDoubleClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (instrLabel);
     favPicker.setTextWhenNothingSelected ("Instrument…");
     favPicker.onChange = [this]
@@ -26,6 +29,29 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     addAndMakeVisible (favPicker);
     openButton.onClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (openButton);
+
+    // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
+    auto setupNum = [this] (juce::TextEditor& t, const juce::String& placeholder)
+    {
+        t.setInputRestrictions (5, "0123456789");
+        t.setTextToShowWhenEmpty (placeholder, juce::Colours::grey);
+        addAndMakeVisible (t);
+    };
+    setupNum (testX, "x"); setupNum (testY, "y"); setupNum (testW, "w"); setupNum (testH, "h");
+    addAndMakeVisible (testMovable);
+    addAndMakeVisible (testClamp);
+    scaleDown.onClick = [this] { scaleWindow (1.0 / 1.1); };
+    scaleUp.onClick   = [this] { scaleWindow (1.1); };
+    addAndMakeVisible (scaleDown);
+    addAndMakeVisible (scaleUp);
+    openFixedButton.onClick = [this]
+    {
+        proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
+                                 testW.getText().getIntValue(), testH.getText().getIntValue(),
+                                 testMovable.getToggleState(), testClamp.getToggleState());
+        refresh();
+    };
+    addAndMakeVisible (openFixedButton);
 
     // Master volume: label + horizontal fader + dB readout.
     volumeLabel.setText ("Volume", juce::dontSendNotification);
@@ -44,7 +70,7 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     onTopLabel.setText ("On top", juce::dontSendNotification);
     addAndMakeVisible (onTopLabel);
     onTopBox.addItem ("off", 1);
-    onTopBox.addItem ("This", 2);
+    onTopBox.addItem ("Custos", 2);
     onTopBox.addItem ("Instrument", 3);
     onTopBox.onChange = [this] { proc.setOnTopMode ((OnTopMode) onTopBox.getSelectedItemIndex()); };
     addAndMakeVisible (onTopBox);
@@ -79,6 +105,8 @@ void CustosEditor::refresh()
     volumeFader.setValue (proc.volumeDb(), juce::dontSendNotification);
     dbLabel.setText (juce::String (proc.volumeDb(), 1) + " dB", juce::dontSendNotification);
 
+    updateRectReadout();   // reflect the window's physical rect (incl. OSC-set / dragged) into the test fields
+
     // Brand filter (preserve the selected brand across rebuilds).
     const juce::String selBrand = (brandFilter.getSelectedId() > 1) ? brandFilter.getText() : juce::String();
     brandFilter.clear (juce::dontSendNotification);
@@ -99,8 +127,28 @@ void CustosEditor::refresh()
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = showId ? 178 : 146;
+    const int targetH = showId ? 240 : 208;
     if (getHeight() != targetH) setSize (360, targetH);
+}
+
+void CustosEditor::scaleWindow (double factor)
+{
+    const auto r = proc.currentSynthWindowPhysical();
+    if (r.isEmpty()) return;   // no window open
+    const int nw = juce::jmax (60, (int) std::lround (r.getWidth()  * factor));
+    const int nh = juce::jmax (60, (int) std::lround (r.getHeight() * factor));
+    proc.setSynthWindowRect (r.getX(), r.getY(), nw, nh,
+                             testMovable.getToggleState(), testClamp.getToggleState());
+}
+
+void CustosEditor::updateRectReadout()
+{
+    if (! proc.isSynthWindowVisible()) return;
+    const auto rp = proc.currentSynthWindowPhysical();
+    testX.setText (juce::String (rp.getX()),      juce::dontSendNotification);
+    testY.setText (juce::String (rp.getY()),      juce::dontSendNotification);
+    testW.setText (juce::String (rp.getWidth()),  juce::dontSendNotification);
+    testH.setText (juce::String (rp.getHeight()), juce::dontSendNotification);
 }
 
 void CustosEditor::rebuildInstrumentList()
@@ -166,6 +214,24 @@ void CustosEditor::resized()
     auto onTopRow = r.removeFromTop (24);
     onTopLabel.setBounds (onTopRow.removeFromLeft (84));
     onTopBox.setBounds   (onTopRow.removeFromLeft (130));
+    r.removeFromTop (8);
+
+    // Test row 1: physical rect fields + Open fixed.
+    auto rectRow = r.removeFromTop (24);
+    testX.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testY.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testW.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testH.setBounds (rectRow.removeFromLeft (44));
+    openFixedButton.setBounds (rectRow.removeFromRight (84));
+    r.removeFromTop (6);
+
+    // Test row 2: movable / clamp toggles + proportional scale.
+    auto optRow = r.removeFromTop (24);
+    testMovable.setBounds (optRow.removeFromLeft (78));
+    testClamp.setBounds   (optRow.removeFromLeft (64));
+    scaleUp.setBounds   (optRow.removeFromRight (30));
+    optRow.removeFromRight (4);
+    scaleDown.setBounds (optRow.removeFromRight (30));
     r.removeFromTop (8);
 
     auto idRow = r.removeFromTop (24);

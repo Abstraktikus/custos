@@ -18,7 +18,7 @@ class CustosOscServer;   // forward declaration (unique_ptr member; defined in C
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
 
 // Which window (if any) to keep always-on-top.
-enum OnTopMode { OnTopOff, OnTopThis, OnTopInstrument };
+enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
 class CustosProcessor : public juce::AudioProcessor
 {
@@ -102,11 +102,21 @@ public:
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
 
+    // F3/F6: show (if needed) + place the synth window at a PHYSICAL-pixel rect (DPI-mapped). Message thread.
+    // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
+    void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false);
+
+    // The synth window's current bounds in PHYSICAL pixels (empty if hidden). For the editor's rect readout.
+    juce::Rectangle<int> currentSynthWindowPhysical() const;
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
 private:
-    void refreshEditor();   // refresh the active CustosEditor (if any) after a window state change
+    void refreshEditor();            // refresh the active CustosEditor (if any) after a window state change
+    void updateEditorRectReadout();  // lightweight: update only the editor's x/y/w/h readout (live during drag)
+    void emitWindowRect();           // send /custos/window/rect position feedback to KM (no-op if sink null)
+    bool synthWindowMovable = false; // last movable flag applied to the synth window (for feedback)
 
     std::unique_ptr<juce::AudioProcessor> inner;
     mutable juce::SpinLock swapLock;  // guards the inner-pointer swap vs the audio thread (also getTailLengthSeconds)

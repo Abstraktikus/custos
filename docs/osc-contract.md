@@ -41,8 +41,8 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/favorites/begin` | — | start a favorites push |
 | `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string` | one favorites entry (`brand` optional 6th arg — omit for none; used for the UI brand filter) |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
-| `/custos/window` | `target:string` (`custos`\|`plugin`\|`both`\|`hide`) | window visibility *(details TBD in F3/F6 spec)* |
-| `/custos/window/rect` | `x,y,w,h:int, movable:int` | window geometry *(details TBD in F3/F6 spec)* |
+| `/custos/window` | `mode:string` (`show`\|`hide`) | show/hide the **inner-synth** window (borderless; never the Custos panel) |
+| `/custos/window/rect` | `x,y,w,h:int, movable:int [, clamp:int]` | place the synth window at a **physical-pixel** rect (DPI-mapped); `movable`=body-draggable; `clamp` (optional, default 0) constrains it to the monitor work area for config-phase reachable borders. Shows the window if hidden |
 
 ---
 
@@ -55,6 +55,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/param` | `N, idx:int, val:float, name:string` | one dumped param |
 | `/custos/params/done` | `N, start:int, count:int` | end of a dump range; `count` = params **actually sent** (clamped to `boundCount`), `start` echoes the request |
 | `/custos/loaded` | `N, path:string, boundCount:int` | inner changed (OSC **or** UI); empty path = cleared (`boundCount` 0). Carries `boundCount` so KM can dump immediately — no `hello` round-trip |
+| `/custos/window/rect` | `N, x,y,w,h:int, movable:int` | synth-window position feedback — emitted when the operator **drags** the window (on mouse-up) or when a rect is (re)applied. Physical px. Lets KM capture the operator-chosen geometry for its settings |
 
 **Ack strings:** `loaded <path> count=<n>` · `cleared` · `mode <m> (applies after reload)` ·
 `error <msg>`.

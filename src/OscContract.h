@@ -40,4 +40,12 @@ inline juce::OSCMessage buildParamsDone (int n, int start, int count)
 {
     return juce::OSCMessage ("/custos/params/done", n, start, count);
 }
+
+// Window-position feedback (Custos -> KM). N first, then the PHYSICAL-pixel rect and the movable flag.
+// Emitted when the operator drags the synth window or when a rect is (re)applied, so KM can capture the
+// operator-chosen geometry for its settings. Same address as the inbound verb; the leading N marks it a report.
+inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool movable)
+{
+    return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0);
+}
 }

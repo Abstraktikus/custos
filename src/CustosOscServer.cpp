@@ -66,6 +66,32 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/window")
+    {
+        if (msg.size() >= 1 && msg[0].isString())
+        {
+            const auto m = msg[0].getString();
+            if (m == "show") return { Command::WindowShow, {} };
+            if (m == "hide") return { Command::WindowHide, {} };
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/window/rect")
+    {
+        if (msg.size() >= 5 && msg[0].isInt32() && msg[1].isInt32() && msg[2].isInt32()
+            && msg[3].isInt32() && msg[4].isInt32())
+        {
+            Command c;
+            c.kind = Command::WindowRect;
+            c.rx = msg[0].getInt32(); c.ry = msg[1].getInt32();
+            c.rw = msg[2].getInt32(); c.rh = msg[3].getInt32();
+            c.movable = msg[4].getInt32() != 0;
+            if (msg.size() >= 6 && msg[5].isInt32())   // clamp optional (back-compat): 1 = config phase
+                c.clamp = msg[5].getInt32() != 0;
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 
@@ -153,6 +179,15 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::FavEnd:
             proc.favoritesEnd();
             writeFavorites (favoritesConfigFile(), proc.getFavorites());   // shared machine config
+            break;
+        case Command::WindowShow:
+            proc.showSynthWindow();
+            break;
+        case Command::WindowHide:
+            proc.hideSynthWindow();
+            break;
+        case Command::WindowRect:
+            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp);
             break;
         case Command::Unknown:
         default:

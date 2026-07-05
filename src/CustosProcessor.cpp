@@ -229,15 +229,10 @@ void CustosProcessor::showSynthWindow()
     if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
     if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
     {
-        // The window's close button defers this callback via the message queue; it can outlive
-        // both the window and this processor. Guard with a weak token so a late dispatch after
-        // ~CustosProcessor is a safe no-op (not a use-after-free).
-        std::weak_ptr<bool> weak = aliveToken;
-        synthWindow = std::make_unique<SynthWindow> (
-            kProduct + juce::String (" - ") + inner->getName(),
-            ed,
-            [this, weak] { if (! weak.expired()) hideSynthWindow(); });
+        synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
+        synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
+        synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
     }
     refreshEditor();
 }
@@ -249,8 +244,48 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
         synthWindow->setAlwaysOnTop (mode == OnTopInstrument);
     if (auto* e = getActiveEditor())
         if (auto* top = e->getTopLevelComponent())
-            top->setAlwaysOnTop (mode == OnTopThis);
+            top->setAlwaysOnTop (mode == OnTopCustos);
     refreshEditor();
+}
+
+void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp)
+{
+    if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
+    if (synthWindow == nullptr) return;              // no inner / editor-less synth
+
+    auto& displays = juce::Desktop::getInstance().getDisplays();
+    auto logical = displays.physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+
+    if (clamp)   // config phase: keep the window inside the target display's work area (borders stay reachable)
+    {
+        const auto* disp = displays.getDisplayForRect (logical);
+        if (disp == nullptr) disp = displays.getPrimaryDisplay();
+        if (disp != nullptr) logical = logical.constrainedWithin (disp->userArea);
+    }
+
+    synthWindowMovable = movable;
+    synthWindow->applyRect (logical, movable);
+    updateEditorRectReadout();   // reflect the applied position in the editor fields
+    emitWindowRect();            // echo the applied position to KM
+}
+
+juce::Rectangle<int> CustosProcessor::currentSynthWindowPhysical() const
+{
+    if (synthWindow == nullptr) return {};
+    return juce::Desktop::getInstance().getDisplays().logicalToPhysical (synthWindow->getBounds());
+}
+
+void CustosProcessor::updateEditorRectReadout()
+{
+    if (auto* e = dynamic_cast<CustosEditor*> (getActiveEditor()))
+        e->updateRectReadout();
+}
+
+void CustosProcessor::emitWindowRect()
+{
+    if (! outboundSink || synthWindow == nullptr) return;
+    const auto r = currentSynthWindowPhysical();
+    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable));
 }
 
 void CustosProcessor::hideSynthWindow()
