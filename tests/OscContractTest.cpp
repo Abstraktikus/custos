@@ -74,3 +74,17 @@ TEST_CASE ("parseCommand rejects /custos/params without two ints")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/params")).kind == Command::Unknown);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/params", 10)).kind == Command::Unknown);
 }
+
+TEST_CASE ("parseCommand maps /custos/volume with a dB float")
+{
+    juce::OSCMessage msg ("/custos/volume", -6.0f);
+    const auto c = parseCommand (msg);
+    REQUIRE (c.kind == Command::Volume);
+    REQUIRE (c.gainDb == -6.0f);   // -6.0f is exactly representable
+}
+
+TEST_CASE ("parseCommand rejects /custos/volume without a float")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/volume")).kind == Command::Unknown);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/volume", 3)).kind == Command::Unknown);  // int, not float
+}

@@ -33,6 +33,12 @@ Command parseCommand (const juce::OSCMessage& msg)
             return { Command::Params, {}, msg[0].getInt32(), msg[1].getInt32() };
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/volume")
+    {
+        if (msg.size() >= 1 && msg[0].isFloat32())
+            return { Command::Volume, {}, 0, 0, msg[0].getFloat32() };
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 

@@ -7,9 +7,10 @@ class CustosProcessor;
 
 struct Command
 {
-    enum Kind { Load, Clear, Hello, Params, Unknown } kind = Unknown;
+    enum Kind { Load, Clear, Hello, Params, Volume, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params
+    float gainDb = 0.0f;        // Volume
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.
