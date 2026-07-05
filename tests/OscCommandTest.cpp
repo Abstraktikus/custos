@@ -46,6 +46,13 @@ TEST_CASE ("parseCommand rejects /custos/midi/route without 16 ints")
     REQUIRE (parseCommand (m).kind == Command::Unknown);
 }
 
+TEST_CASE ("parseCommand rejects /custos/midi/route with a non-int arg among 16")
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    for (int i = 0; i < 16; ++i) { if (i == 5) m.addFloat32 (1.0f); else m.addInt32 (1); }
+    REQUIRE (parseCommand (m).kind == Command::Unknown);
+}
+
 TEST_CASE ("parseCommand maps /custos/midi/query")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/midi/query")).kind == Command::MidiQuery);

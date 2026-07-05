@@ -15,8 +15,10 @@ TEST_CASE ("applyMidiRoute passes identity unchanged")
     midi.addEvent (juce::MidiMessage::noteOn (8, 60, (juce::uint8) 100), 0);
     applyMidiRoute (midi, identity(), scratch);
     bool found = false;
-    for (const auto meta : midi) if (meta.getMessage().getChannel() == 8) found = true;
+    int n = 0;
+    for (const auto meta : midi) { ++n; if (meta.getMessage().getChannel() == 8) found = true; }
     REQUIRE (found);
+    REQUIRE (n == 1);
 }
 
 TEST_CASE ("applyMidiRoute remaps input channel to target")
@@ -25,7 +27,9 @@ TEST_CASE ("applyMidiRoute remaps input channel to target")
     juce::MidiBuffer midi, scratch;
     midi.addEvent (juce::MidiMessage::noteOn (8, 60, (juce::uint8) 100), 0);
     applyMidiRoute (midi, r, scratch);
-    for (const auto meta : midi) REQUIRE (meta.getMessage().getChannel() == 1);
+    int n = 0;
+    for (const auto meta : midi) { REQUIRE (meta.getMessage().getChannel() == 1); ++n; }
+    REQUIRE (n == 1);
 }
 
 TEST_CASE ("applyMidiRoute drops a channel mapped to 0")

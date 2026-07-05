@@ -23,7 +23,9 @@ TEST_CASE ("dumpParams streams bound params then a done marker, clamped to bound
     REQUIRE (sent[0][0].getInt32() == 7);                          // N
     REQUIRE (sent[0][1].getInt32() == 0);                          // idx
     REQUIRE (sent[0][3].getString() == "Fake 0");                  // name (mirrored from the fake inner)
+    REQUIRE (sent[0][4].getFloat32() == 0.25f);                    // defaultVal (fake's ctor default, normalised 0..1)
     REQUIRE (sent[0][5].getInt32() >= 0);                          // numSteps present
+    REQUIRE (sent[0][6].getString() == "");                        // label (fake never sets one; still pins arg position)
     REQUIRE (sent[3].getAddressPattern().toString() == "/custos/params/done");
     REQUIRE (sent[3][0].getInt32() == 7);                          // N
     REQUIRE (sent[3][1].getInt32() == 0);                          // start echoed
