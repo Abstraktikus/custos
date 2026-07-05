@@ -48,8 +48,12 @@ KM**, the Custos editor gains a test affordance: **`x/y/w/h` fields + a `movable
 fixed" action** that opens the synth window borderless at that **physical** rect — running the **same
 code path** as the OSC verbs. (These fields are session-only; see §5.)
 
-This coexists with the existing "Open"/"Close" button (borderless open at a default/last rect) and the
-keep-on-top selector.
+- The **"Open"** button opens the synth window (borderless; brings it to front if already open).
+- **Closing is a hidden feature: double-clicking the "Instrument" label** hides the synth window
+  (mirrors the Brand-label → reveal-id-field pattern).
+- The **keep-on-top selector** options are **off / Custos / Instrument** (the "Custos" item was labelled
+  "This"; the enum value becomes `OnTopCustos`). "Custos" keeps the Custos editor window on top,
+  "Instrument" the synth window.
 
 ## 4. Architecture / data flow
 
@@ -112,5 +116,6 @@ untouched and the window purely externally-driven.
 3. `CustosProcessor::setSynthWindowRect` (physicalToLogical + resize/scale + place) + `show`/`hide`
    routing.
 4. OSC server routes the two verbs.
-5. Editor test controls (`x/y/w/h` + `movable` + "Open fixed").
+5. Editor: test controls (`x/y/w/h` + `movable` + "Open fixed"); hidden close (double-click the
+   "Instrument" label); rename the keep-on-top item "This" → "Custos" (enum `OnTopCustos`).
 6. Autonomous/operator E2E (editor + OSC parity; VstDatabase favourites into N=8/9).
