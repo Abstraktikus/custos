@@ -25,7 +25,8 @@ add_library(custos_core STATIC
     src/SynthWindow.cpp
     src/CustosEditor.cpp
     src/CustosProcessor.cpp
-    src/CustosOscServer.cpp)
+    src/CustosOscServer.cpp
+    src/MidiRoute.cpp)
 target_include_directories(custos_core PUBLIC src)
 target_compile_features(custos_core PUBLIC cxx_std_17)
 target_compile_definitions(custos_core PUBLIC
