@@ -332,7 +332,9 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     trace ("getStateInformation");
     juce::MemoryBlock innerChunk;
     if (inner != nullptr) inner->getStateInformation (innerChunk);
-    dest = serializeState (currentSynthPath, innerChunk, identityN);
+    std::array<std::uint8_t, 16> route {};
+    for (int i = 0; i < 16; ++i) route[(size_t) i] = (std::uint8_t) getMidiRoute()[(size_t) i];
+    dest = serializeState (currentSynthPath, innerChunk, identityN, route);
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
@@ -342,6 +344,7 @@ void CustosProcessor::setStateInformation (const void* data, int size)
     if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
 
     identityN = ps.identityN;                    // tag emissions correctly before any load/clear
+    { std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = ps.route[(size_t) i]; setMidiRoute (r); }
 
     if (ps.path.isEmpty())
     {
