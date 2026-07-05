@@ -31,9 +31,10 @@ inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundC
     return juce::OSCMessage ("/custos/loaded", n, path, boundCount, innerTotal);
 }
 
-inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name)
+inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name,
+                                    float defaultVal, int numSteps, const juce::String& label)
 {
-    return juce::OSCMessage ("/custos/param", n, idx, val, name);
+    return juce::OSCMessage ("/custos/param", n, idx, val, name, defaultVal, numSteps, label);
 }
 
 inline juce::OSCMessage buildParamsDone (int n, int start, int count)

@@ -117,8 +117,9 @@ void CustosProcessor::dumpParams (int start, int count)
     int sent = 0;
     for (int i = from; i < to; ++i)
     {
-        outboundSink (buildParam (identityN, i, facade[(size_t) i]->getValue(),
-                                  facade[(size_t) i]->getName (128)));
+        auto* fp = facade[(size_t) i];
+        outboundSink (buildParam (identityN, i, fp->getValue(), fp->getName (128),
+                                  fp->getDefaultValue(), fp->getNumSteps(), fp->getLabel()));
         ++sent;
     }
     outboundSink (buildParamsDone (identityN, start, sent));

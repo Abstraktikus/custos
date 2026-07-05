@@ -37,14 +37,20 @@ TEST_CASE ("buildLoaded carries N, path, boundCount, innerTotal")
     REQUIRE (l[3].getInt32() == 9035);   // innerTotal (full inner param count)
 }
 
-TEST_CASE ("buildParam and buildParamsDone carry N first")
+TEST_CASE ("buildParam carries N, idx, val, name, defaultVal, numSteps, label")
 {
-    const auto p = buildParam (7, 5, 0.5f, "Cutoff");
+    const auto p = buildParam (7, 5, 0.5f, "Cutoff", 0.25f, 128, "Hz");
     REQUIRE (p.getAddressPattern().toString() == "/custos/param");
-    REQUIRE (p[0].getInt32() == 7);
-    REQUIRE (p[1].getInt32() == 5);
+    REQUIRE (p.size() == 7);
+    REQUIRE (p[1].getInt32()  == 5);
     REQUIRE (p[3].getString() == "Cutoff");
+    REQUIRE (p[4].getFloat32() == 0.25f);
+    REQUIRE (p[5].getInt32()  == 128);
+    REQUIRE (p[6].getString() == "Hz");
+}
 
+TEST_CASE ("buildParamsDone carries N first")
+{
     const auto d = buildParamsDone (7, 0, 3);
     REQUIRE (d.getAddressPattern().toString() == "/custos/params/done");
     REQUIRE (d[0].getInt32() == 7);
