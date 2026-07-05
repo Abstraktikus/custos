@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <juce_osc/juce_osc.h>
 
 #ifndef CUSTOS_OSC_PORT
@@ -48,5 +49,15 @@ inline juce::OSCMessage buildParamsDone (int n, int start, int count)
 inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool movable)
 {
     return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0);
+}
+
+// MIDI route feedback (Custos -> KM). N first, then 16 targets (input i -> value; 0 = dropped).
+// Same address as the inbound verb; the 17-arg form with leading N marks it a report.
+inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    m.addInt32 (n);
+    for (int t : route) m.addInt32 (t);
+    return m;
 }
 }

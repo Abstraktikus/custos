@@ -162,6 +162,17 @@ TEST_CASE ("buildWindowRect carries N first, then rect and movable")
     REQUIRE (m[5].getInt32() == 1);
 }
 
+TEST_CASE ("buildMidiRoute carries N first, then 16 targets")
+{
+    std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = i + 1;
+    const auto m = buildMidiRoute (9, r);
+    REQUIRE (m.getAddressPattern().toString() == "/custos/midi/route");
+    REQUIRE (m.size() == 17);
+    REQUIRE (m[0].getInt32() == 9);
+    REQUIRE (m[1].getInt32() == 1);
+    REQUIRE (m[16].getInt32() == 16);
+}
+
 TEST_CASE ("protoVer is 2 for contract v2")
 {
     REQUIRE (custos::kProtoVersion == 2);
