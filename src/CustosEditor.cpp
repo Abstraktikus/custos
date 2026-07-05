@@ -1,5 +1,6 @@
 #include "CustosEditor.h"
 #include "CustosProcessor.h"
+#include "MidiRouteMatrix.h"
 #include <cmath>
 
 namespace custos
@@ -86,6 +87,23 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     { const int n0 = proc.identity();
       idField.setText ((n0 >= 1 && n0 <= 15) ? juce::String (n0) : juce::String(), juce::dontSendNotification); }
 
+    // MIDI route matrix (local test convenience; drives proc.setMidiRoute). M = mute (route 0).
+    midiLabel.setText ("MIDI ch -> out", juce::dontSendNotification);
+    addAndMakeVisible (midiLabel);
+    for (int ch = 0; ch < 16; ++ch)
+    {
+        routeChanLabel[(size_t) ch].setText (juce::String (ch + 1), juce::dontSendNotification);
+        routeChanLabel[(size_t) ch].setJustificationType (juce::Justification::centred);
+        routeChanLabel[(size_t) ch].setFont (juce::Font (juce::FontOptions (11.0f)));
+        addAndMakeVisible (routeChanLabel[(size_t) ch]);
+
+        auto& b = routeBox[(size_t) ch];
+        b.addItem ("M", 1);                                        // id 1 = mute (route 0)
+        for (int out = 1; out <= 16; ++out) b.addItem (juce::String (out), out + 1);  // ids 2..17
+        b.onChange = [this] { gatherRouteFromBoxes(); };
+        addAndMakeVisible (b);
+    }
+
     refresh();
 }
 
@@ -123,11 +141,16 @@ void CustosEditor::refresh()
 
     rebuildInstrumentList();
 
+    // Reflect the current route map into the selectors (identity by default, or whatever KM/state set).
+    const auto routeIds = itemIdsFromRoute (proc.getMidiRoute());
+    for (int i = 0; i < 16; ++i)
+        routeBox[(size_t) i].setSelectedId (routeIds[(size_t) i], juce::dontSendNotification);
+
     // Identity visibility + adaptive window height.
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = showId ? 240 : 208;
+    const int targetH = (showId ? 240 : 208) + 104;   // + MIDI matrix section
     if (getHeight() != targetH) setSize (360, targetH);
 }
 
@@ -177,6 +200,13 @@ void CustosEditor::rebuildInstrumentList()
     }
 }
 
+void CustosEditor::gatherRouteFromBoxes()
+{
+    std::array<int, 16> ids {};
+    for (int i = 0; i < 16; ++i) ids[(size_t) i] = routeBox[(size_t) i].getSelectedId();
+    proc.setMidiRoute (routeFromItemIds (ids));
+}
+
 void CustosEditor::commitIdentity()
 {
     const int n = idField.getText().getIntValue();
@@ -215,6 +245,24 @@ void CustosEditor::resized()
     onTopLabel.setBounds (onTopRow.removeFromLeft (84));
     onTopBox.setBounds   (onTopRow.removeFromLeft (130));
     r.removeFromTop (8);
+
+    // MIDI route matrix: header + two rows of 8 (input ch caption over an output selector).
+    auto midiHdr = r.removeFromTop (20);
+    midiLabel.setBounds (midiHdr.removeFromLeft (140));
+    r.removeFromTop (4);
+    for (int row = 0; row < 2; ++row)
+    {
+        auto capRow = r.removeFromTop (14);
+        auto boxRow = r.removeFromTop (22);
+        const int colW = capRow.getWidth() / 8;
+        for (int col = 0; col < 8; ++col)
+        {
+            const int ch = row * 8 + col;
+            routeChanLabel[(size_t) ch].setBounds (capRow.removeFromLeft (colW).reduced (1, 0));
+            routeBox[(size_t) ch].setBounds       (boxRow.removeFromLeft (colW).reduced (1, 0));
+        }
+        r.removeFromTop (4);
+    }
 
     // Test row 1: physical rect fields + Open fixed.
     auto rectRow = r.removeFromTop (24);

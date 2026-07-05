@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "FavoritesStore.h"
+#include <array>
 #include <vector>
 #include <functional>
 
@@ -60,6 +61,11 @@ private:
 
     juce::Label      idLabel;      // "Id"
     juce::TextEditor idField;      // N (1..15); hidden once set
+
+    juce::Label      midiLabel;                     // "MIDI ch -> out"
+    std::array<juce::Label, 16>    routeChanLabel;  // input channel captions 1..16
+    std::array<juce::ComboBox, 16> routeBox;        // per input channel: M / 1..16 (output)
+    void gatherRouteFromBoxes();                    // read the 16 boxes -> proc.setMidiRoute
 
     bool idRevealed = false;
     std::vector<Favorite> filtered;
