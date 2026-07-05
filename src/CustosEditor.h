@@ -39,9 +39,13 @@ private:
     ClickableLabel   brandLabel;   // "Brand" — double-click reveals the identity field
     juce::ComboBox   brandFilter;
 
-    juce::Label      instrLabel;   // "Instrument"
+    ClickableLabel   instrLabel;   // "Instrument" — double-click closes the synth window (hidden feature)
     juce::ComboBox   favPicker;
     juce::TextButton openButton { "Open" };
+
+    juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
+    juce::ToggleButton testMovable { "movable" };
+    juce::TextButton   openFixedButton { "Open fixed" };
 
     juce::Label      volumeLabel;  // "Volume"
     juce::Slider     volumeFader { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };

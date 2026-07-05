@@ -14,8 +14,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     brandFilter.onChange = [this] { rebuildInstrumentList(); };   // re-filter only; never loads
     addAndMakeVisible (brandFilter);
 
-    // Instrument picker + open.
+    // Instrument picker + open. Double-clicking the label closes the synth window (hidden feature).
     instrLabel.setText ("Instrument", juce::dontSendNotification);
+    instrLabel.setInterceptsMouseClicks (true, false);
+    instrLabel.onDoubleClick = [this] { proc.hideSynthWindow(); refresh(); };
     addAndMakeVisible (instrLabel);
     favPicker.setTextWhenNothingSelected ("Instrument…");
     favPicker.onChange = [this]
@@ -26,6 +28,24 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     addAndMakeVisible (favPicker);
     openButton.onClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (openButton);
+
+    // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
+    auto setupNum = [this] (juce::TextEditor& t, const juce::String& placeholder)
+    {
+        t.setInputRestrictions (5, "0123456789");
+        t.setTextToShowWhenEmpty (placeholder, juce::Colours::grey);
+        addAndMakeVisible (t);
+    };
+    setupNum (testX, "x"); setupNum (testY, "y"); setupNum (testW, "w"); setupNum (testH, "h");
+    addAndMakeVisible (testMovable);
+    openFixedButton.onClick = [this]
+    {
+        proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
+                                 testW.getText().getIntValue(), testH.getText().getIntValue(),
+                                 testMovable.getToggleState());
+        refresh();
+    };
+    addAndMakeVisible (openFixedButton);
 
     // Master volume: label + horizontal fader + dB readout.
     volumeLabel.setText ("Volume", juce::dontSendNotification);
@@ -44,7 +64,7 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     onTopLabel.setText ("On top", juce::dontSendNotification);
     addAndMakeVisible (onTopLabel);
     onTopBox.addItem ("off", 1);
-    onTopBox.addItem ("This", 2);
+    onTopBox.addItem ("Custos", 2);
     onTopBox.addItem ("Instrument", 3);
     onTopBox.onChange = [this] { proc.setOnTopMode ((OnTopMode) onTopBox.getSelectedItemIndex()); };
     addAndMakeVisible (onTopBox);
@@ -99,7 +119,7 @@ void CustosEditor::refresh()
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = showId ? 178 : 146;
+    const int targetH = showId ? 210 : 178;
     if (getHeight() != targetH) setSize (360, targetH);
 }
 
@@ -166,6 +186,15 @@ void CustosEditor::resized()
     auto onTopRow = r.removeFromTop (24);
     onTopLabel.setBounds (onTopRow.removeFromLeft (84));
     onTopBox.setBounds   (onTopRow.removeFromLeft (130));
+    r.removeFromTop (8);
+
+    auto testRow = r.removeFromTop (24);
+    testX.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
+    testY.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
+    testW.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
+    testH.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (8);
+    testMovable.setBounds (testRow.removeFromLeft (78));
+    openFixedButton.setBounds (testRow.removeFromRight (84));
     r.removeFromTop (8);
 
     auto idRow = r.removeFromTop (24);
