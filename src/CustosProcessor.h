@@ -92,6 +92,11 @@ public:
     bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr; }
     bool hasInnerSynth() const noexcept { return inner != nullptr; }
     juce::String innerSynthName() const;
+    juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
+
+    // Keep the synth window above other windows. Applies to the current window and future ones.
+    void setSynthWindowOnTop (bool onTop);
+    bool isSynthWindowOnTop() const noexcept { return synthWindowOnTop; }
 
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
@@ -111,6 +116,7 @@ private:
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
+    bool synthWindowOnTop = false;              // keep the synth window always-on-top
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;

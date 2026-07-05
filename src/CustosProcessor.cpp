@@ -237,7 +237,15 @@ void CustosProcessor::showSynthWindow()
             kProduct + juce::String (" - ") + inner->getName(),
             ed,
             [this, weak] { if (! weak.expired()) hideSynthWindow(); });
+        synthWindow->setAlwaysOnTop (synthWindowOnTop);
     }
+    refreshEditor();
+}
+
+void CustosProcessor::setSynthWindowOnTop (bool onTop)
+{
+    synthWindowOnTop = onTop;
+    if (synthWindow != nullptr) synthWindow->setAlwaysOnTop (onTop);
     refreshEditor();
 }
 
