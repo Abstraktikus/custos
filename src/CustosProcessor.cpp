@@ -6,6 +6,7 @@
 #include "StateCodec.h"
 #include "CustosOscServer.h"
 #include "OscContract.h"
+#include "MidiRoute.h"
 #include <algorithm>
 
 namespace custos
@@ -15,6 +16,7 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     trace ("ctor: begin");
+    for (int i = 0; i < 16; ++i) midiRoute[(size_t) i].store ((std::uint8_t) (i + 1), std::memory_order_relaxed);
     facade.reserve (kFacadeParamCount);
     for (int i = 0; i < kFacadeParamCount; ++i)
     {
@@ -201,8 +203,26 @@ void CustosProcessor::releaseResources()
     if (inner != nullptr) inner->releaseResources();
 }
 
+void CustosProcessor::setMidiRoute (const std::array<int, 16>& route)
+{
+    for (int i = 0; i < 16; ++i)
+        midiRoute[(size_t) i].store ((std::uint8_t) juce::jlimit (0, 16, route[(size_t) i]),
+                                     std::memory_order_relaxed);
+}
+
+std::array<int, 16> CustosProcessor::getMidiRoute() const
+{
+    std::array<int, 16> out {};
+    for (int i = 0; i < 16; ++i) out[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
+    return out;
+}
+
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    std::array<std::uint8_t, 16> snap {};
+    for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
+    applyMidiRoute (midi, snap, routeScratch);
+
     {
         const juce::SpinLock::ScopedTryLockType tl (swapLock);
         if (tl.isLocked() && inner != nullptr)

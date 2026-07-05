@@ -47,3 +47,22 @@ TEST_CASE ("applyMidiRoute passes non-channel messages through")
     int n = 0; for (const auto meta : midi) { juce::ignoreUnused (meta); ++n; }
     REQUIRE (n == 1);
 }
+
+#include "CustosProcessor.h"
+
+TEST_CASE ("CustosProcessor MIDI route defaults to identity and round-trips")
+{
+    custos::CustosProcessor proc;
+    auto def = proc.getMidiRoute();
+    REQUIRE (def[0] == 1);
+    REQUIRE (def[15] == 16);
+
+    std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = 16 - i;
+    proc.setMidiRoute (r);
+    REQUIRE (proc.getMidiRoute() == r);
+
+    std::array<int, 16> bad {}; bad[0] = 99; bad[1] = -1;   // clamped to 0..16
+    proc.setMidiRoute (bad);
+    REQUIRE (proc.getMidiRoute()[0] == 16);
+    REQUIRE (proc.getMidiRoute()[1] == 0);
+}

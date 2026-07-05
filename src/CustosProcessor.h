@@ -9,6 +9,7 @@
 #include <memory>
 #include <functional>
 #include <atomic>
+#include <array>
 
 namespace custos
 {
@@ -113,6 +114,10 @@ public:
     // The synth window's current bounds in PHYSICAL pixels (empty if hidden). For the editor's rect readout.
     juce::Rectangle<int> currentSynthWindowPhysical() const;
 
+    // MIDI channel routing (message thread writes, audio thread reads). Persisted (state v3).
+    void setMidiRoute (const std::array<int, 16>& route);   // values clamped to 0..16
+    std::array<int, 16> getMidiRoute() const;
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
@@ -141,6 +146,8 @@ private:
     double preparedSampleRate = 0.0;
     int preparedBlockSize = 0;
     bool isPrepared = false;
+    std::array<std::atomic<std::uint8_t>, 16> midiRoute;   // target output per input channel; 0 = drop
+    juce::MidiBuffer routeScratch;                          // reused by applyMidiRoute (no RT alloc)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };
