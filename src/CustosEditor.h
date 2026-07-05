@@ -30,6 +30,7 @@ private:
     juce::Label      idLabel;      // "Id" caption
     juce::TextEditor idField;      // operator types N (1..15)
     juce::Label      idStatus;     // ":<port>" or a collision / unassigned warning
+    juce::ComboBox   favPicker;    // ranked favourites; pick -> load
 
     void commitIdentity();
 

@@ -38,8 +38,16 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     idStatus.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (idStatus);
 
+    favPicker.setTextWhenNothingSelected ("Favourites…");
+    favPicker.onChange = [this]
+    {
+        const int i = favPicker.getSelectedItemIndex();
+        if (i >= 0) proc.loadFavorite (i);
+    };
+    addAndMakeVisible (favPicker);
+
     refresh();
-    setSize (360, 172);
+    setSize (360, 212);
 }
 
 CustosEditor::~CustosEditor() = default;
@@ -60,6 +68,11 @@ void CustosEditor::refresh()
         idStatus.setText (":" + juce::String (oscPortForIdentity (n)), juce::dontSendNotification);
     // NOTE: refresh() deliberately does NOT rewrite idField — that would fight the user mid-typing.
     // The field is seeded from proc.identity() in the constructor and owned by the user thereafter.
+
+    favPicker.clear (juce::dontSendNotification);   // clear() alone does not fire onChange
+    int id = 1;
+    for (const auto& f : proc.getFavorites())
+        favPicker.addItem (f.name, id++);
 }
 
 void CustosEditor::commitIdentity()
@@ -84,6 +97,8 @@ void CustosEditor::resized()
     idField.setBounds  (idRow.removeFromLeft (48));
     idRow.removeFromLeft (8);
     idStatus.setBounds (idRow);
+    r.removeFromTop (12);
+    favPicker.setBounds (r.removeFromTop (26).removeFromLeft (240));
 }
 
 void CustosEditor::paint (juce::Graphics& g)
