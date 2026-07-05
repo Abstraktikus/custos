@@ -39,6 +39,28 @@ Command parseCommand (const juce::OSCMessage& msg)
             return { Command::Volume, {}, 0, 0, msg[0].getFloat32() };
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/favorites/begin")
+        return { Command::FavBegin, {} };
+    if (addr == "/custos/favorite")
+    {
+        if (msg.size() >= 5 && msg[0].isInt32() && msg[1].isString() && msg[2].isString()
+            && msg[3].isInt32() && msg[4].isFloat32())
+        {
+            Command c;
+            c.kind = Command::FavEntry;
+            c.fav  = { msg[1].getString(), msg[2].getString(), msg[3].getInt32(), msg[4].getFloat32() };
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/favorites/end")
+    {
+        if (msg.size() >= 1 && msg[0].isInt32())
+        {
+            Command c; c.kind = Command::FavEnd; c.count = msg[0].getInt32(); return c;
+        }
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 

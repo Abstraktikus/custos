@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_osc/juce_osc.h>
+#include "FavoritesStore.h"
 
 namespace custos
 {
@@ -7,10 +8,11 @@ class CustosProcessor;
 
 struct Command
 {
-    enum Kind { Load, Clear, Hello, Params, Volume, Unknown } kind = Unknown;
+    enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd, Unknown } kind = Unknown;
     juce::String path;
-    int start = 0, count = 0;   // Params
+    int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
+    Favorite fav;               // FavEntry
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.

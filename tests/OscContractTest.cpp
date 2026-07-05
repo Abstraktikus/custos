@@ -88,3 +88,26 @@ TEST_CASE ("parseCommand rejects /custos/volume without a float")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/volume")).kind == Command::Unknown);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/volume", 3)).kind == Command::Unknown);  // int, not float
 }
+
+TEST_CASE ("parseCommand maps the favourites push")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/favorites/begin")).kind == Command::FavBegin);
+
+    juce::OSCMessage entry ("/custos/favorite", 0, juce::String ("Diva"),
+                            juce::String ("C:/x/Diva.vst3"), 3, -2.0f);
+    const auto e = parseCommand (entry);
+    REQUIRE (e.kind == Command::FavEntry);
+    REQUIRE (e.fav.name == "Diva");
+    REQUIRE (e.fav.path == "C:/x/Diva.vst3");
+    REQUIRE (e.fav.favOrder == 3);
+    REQUIRE (e.fav.gainDb == -2.0f);
+
+    const auto end = parseCommand (juce::OSCMessage ("/custos/favorites/end", 12));
+    REQUIRE (end.kind == Command::FavEnd);
+    REQUIRE (end.count == 12);
+}
+
+TEST_CASE ("parseCommand rejects a malformed favourite entry")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/favorite", 0, juce::String ("x"))).kind == Command::Unknown);
+}
