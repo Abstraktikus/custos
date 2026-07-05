@@ -111,3 +111,19 @@ TEST_CASE ("v2 blob parses with identity route (back-compat)")
     REQUIRE (ps.identityN == 4);
     for (int i = 0; i < 16; ++i) REQUIRE (ps.route[(size_t) i] == (std::uint8_t) (i + 1));
 }
+
+TEST_CASE ("truncated v3 blob (partial route bytes) is rejected")
+{
+    juce::MemoryBlock mb; juce::MemoryOutputStream os (mb, false);
+    os.write ("CUS1", 4); os.writeByte (3);                // v3
+    const char* p = "C:/a.vst3"; const int pl = (int) std::strlen (p);
+    os.writeInt (pl); os.write (p, (size_t) pl);
+    os.writeInt (0);                                        // empty inner
+    os.writeInt (4);                                        // identityN
+    const unsigned char partial[10] = {1,2,3,4,5,6,7,8,9,10};
+    os.write (partial, 10);                                // only 10 of 16 route bytes -> truncated
+    os.flush();
+
+    custos::PersistedState ps;
+    REQUIRE_FALSE (custos::parseState (mb.getData(), (int) mb.getSize(), ps));
+}
