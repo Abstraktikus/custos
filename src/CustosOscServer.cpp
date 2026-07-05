@@ -104,6 +104,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::Hello:
             announceHere();
             break;
+        case Command::Params:
+            proc.dumpParams (cmd.start, cmd.count);
+            break;
         case Command::Unknown:
         default:
             ack ("error unknown " + msg.getAddressPattern().toString());
