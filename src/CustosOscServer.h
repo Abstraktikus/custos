@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <juce_osc/juce_osc.h>
 #include "FavoritesStore.h"
 
@@ -9,7 +10,7 @@ class CustosProcessor;
 struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
-                WindowShow, WindowHide, WindowRect, Unknown } kind = Unknown;
+                WindowShow, WindowHide, WindowRect, MidiRoute, MidiQuery, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
@@ -17,6 +18,7 @@ struct Command
     int rx = 0, ry = 0, rw = 0, rh = 0;   // WindowRect (physical px)
     bool movable = false;                 // WindowRect
     bool clamp = false;                   // WindowRect: constrain to the monitor work area (config phase)
+    std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.

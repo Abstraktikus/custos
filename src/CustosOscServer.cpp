@@ -92,6 +92,22 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/midi/route")
+    {
+        if (msg.size() == 16)
+        {
+            Command c; c.kind = Command::MidiRoute;
+            for (int i = 0; i < 16; ++i)
+            {
+                if (! msg[i].isInt32()) return { Command::Unknown, {} };
+                c.route[(size_t) i] = msg[i].getInt32();
+            }
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/midi/query")
+        return { Command::MidiQuery, {} };
     return { Command::Unknown, {} };
 }
 
