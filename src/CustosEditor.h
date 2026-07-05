@@ -28,6 +28,7 @@ public:
     void resized() override;
     void paint (juce::Graphics&) override;
     void refresh();
+    void updateRectReadout();   // update only the x/y/w/h fields from the live window rect (cheap; drag-safe)
 
 private:
     void commitIdentity();
@@ -45,6 +46,7 @@ private:
 
     juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
     juce::ToggleButton testMovable { "movable" };
+    juce::ToggleButton testClamp   { "clamp" };    // constrain to monitor work area (config phase)
     juce::TextButton   openFixedButton { "Open fixed" };
 
     juce::Label      volumeLabel;  // "Volume"

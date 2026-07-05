@@ -139,3 +139,27 @@ TEST_CASE ("parseCommand maps /custos/window/rect with five ints")
 
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/rect", 1, 2, 3)).kind == Command::Unknown);
 }
+
+TEST_CASE ("parseCommand maps /custos/window/rect optional clamp arg")
+{
+    const auto c = parseCommand (juce::OSCMessage ("/custos/window/rect", 1, 2, 3, 4, 0, 1));
+    REQUIRE (c.kind == Command::WindowRect);
+    REQUIRE (c.clamp == true);
+
+    const auto c2 = parseCommand (juce::OSCMessage ("/custos/window/rect", 1, 2, 3, 4, 0));
+    REQUIRE (c2.kind == Command::WindowRect);
+    REQUIRE (c2.clamp == false);   // omitted -> no clamp (live)
+}
+
+TEST_CASE ("buildWindowRect carries N first, then rect and movable")
+{
+    const auto m = buildWindowRect (9, 100, 200, 640, 480, true);
+    REQUIRE (m.getAddressPattern().toString() == "/custos/window/rect");
+    REQUIRE (m.size() == 6);
+    REQUIRE (m[0].getInt32() == 9);
+    REQUIRE (m[1].getInt32() == 100);
+    REQUIRE (m[2].getInt32() == 200);
+    REQUIRE (m[3].getInt32() == 640);
+    REQUIRE (m[4].getInt32() == 480);
+    REQUIRE (m[5].getInt32() == 1);
+}

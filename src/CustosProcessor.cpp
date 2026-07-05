@@ -231,6 +231,8 @@ void CustosProcessor::showSynthWindow()
     {
         synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
+        synthWindow->onMoved   = [this] { updateEditorRectReadout(); };          // live readout while dragging
+        synthWindow->onDragEnd = [this] { emitWindowRect(); updateEditorRectReadout(); };  // report final pos
     }
     refreshEditor();
 }
@@ -246,14 +248,44 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
     refreshEditor();
 }
 
-void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable)
+void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp)
 {
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
     if (synthWindow == nullptr) return;              // no inner / editor-less synth
 
-    const auto logical = juce::Desktop::getInstance().getDisplays()
-                             .physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+    auto& displays = juce::Desktop::getInstance().getDisplays();
+    auto logical = displays.physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+
+    if (clamp)   // config phase: keep the window inside the target display's work area (borders stay reachable)
+    {
+        const auto* disp = displays.getDisplayForRect (logical);
+        if (disp == nullptr) disp = displays.getPrimaryDisplay();
+        if (disp != nullptr) logical = logical.constrainedWithin (disp->userArea);
+    }
+
+    synthWindowMovable = movable;
     synthWindow->applyRect (logical, movable);
+    updateEditorRectReadout();   // reflect the applied position in the editor fields
+    emitWindowRect();            // echo the applied position to KM
+}
+
+juce::Rectangle<int> CustosProcessor::currentSynthWindowPhysical() const
+{
+    if (synthWindow == nullptr) return {};
+    return juce::Desktop::getInstance().getDisplays().logicalToPhysical (synthWindow->getBounds());
+}
+
+void CustosProcessor::updateEditorRectReadout()
+{
+    if (auto* e = dynamic_cast<CustosEditor*> (getActiveEditor()))
+        e->updateRectReadout();
+}
+
+void CustosProcessor::emitWindowRect()
+{
+    if (! outboundSink || synthWindow == nullptr) return;
+    const auto r = currentSynthWindowPhysical();
+    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable));
 }
 
 void CustosProcessor::hideSynthWindow()

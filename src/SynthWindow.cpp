@@ -33,11 +33,21 @@ void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
 
 void SynthWindow::mouseDown (const juce::MouseEvent& e)
 {
+    dragged = false;
     if (draggable) dragger.startDraggingComponent (this, e);
 }
 
 void SynthWindow::mouseDrag (const juce::MouseEvent& e)
 {
-    if (draggable) dragger.dragComponent (this, e, nullptr);
+    if (! draggable) return;
+    dragger.dragComponent (this, e, nullptr);
+    dragged = true;
+    if (onMoved) onMoved();        // live UI readout follows the drag
+}
+
+void SynthWindow::mouseUp (const juce::MouseEvent&)
+{
+    if (draggable && dragged && onDragEnd) onDragEnd();   // report the final position once
+    dragged = false;
 }
 }

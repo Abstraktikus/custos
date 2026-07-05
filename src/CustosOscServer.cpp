@@ -86,6 +86,8 @@ Command parseCommand (const juce::OSCMessage& msg)
             c.rx = msg[0].getInt32(); c.ry = msg[1].getInt32();
             c.rw = msg[2].getInt32(); c.rh = msg[3].getInt32();
             c.movable = msg[4].getInt32() != 0;
+            if (msg.size() >= 6 && msg[5].isInt32())   // clamp optional (back-compat): 1 = config phase
+                c.clamp = msg[5].getInt32() != 0;
             return c;
         }
         return { Command::Unknown, {} };
@@ -185,7 +187,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             proc.hideSynthWindow();
             break;
         case Command::WindowRect:
-            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable);
+            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp);
             break;
         case Command::Unknown:
         default:

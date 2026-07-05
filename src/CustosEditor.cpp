@@ -14,10 +14,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     brandFilter.onChange = [this] { rebuildInstrumentList(); };   // re-filter only; never loads
     addAndMakeVisible (brandFilter);
 
-    // Instrument picker + open. Double-clicking the label closes the synth window (hidden feature).
+    // Instrument picker + open. Double-clicking the label toggles the synth window (hidden feature).
     instrLabel.setText ("Instrument", juce::dontSendNotification);
     instrLabel.setInterceptsMouseClicks (true, false);
-    instrLabel.onDoubleClick = [this] { proc.hideSynthWindow(); refresh(); };
+    instrLabel.onDoubleClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (instrLabel);
     favPicker.setTextWhenNothingSelected ("Instrument…");
     favPicker.onChange = [this]
@@ -38,11 +38,12 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     };
     setupNum (testX, "x"); setupNum (testY, "y"); setupNum (testW, "w"); setupNum (testH, "h");
     addAndMakeVisible (testMovable);
+    addAndMakeVisible (testClamp);
     openFixedButton.onClick = [this]
     {
         proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
                                  testW.getText().getIntValue(), testH.getText().getIntValue(),
-                                 testMovable.getToggleState());
+                                 testMovable.getToggleState(), testClamp.getToggleState());
         refresh();
     };
     addAndMakeVisible (openFixedButton);
@@ -99,6 +100,8 @@ void CustosEditor::refresh()
     volumeFader.setValue (proc.volumeDb(), juce::dontSendNotification);
     dbLabel.setText (juce::String (proc.volumeDb(), 1) + " dB", juce::dontSendNotification);
 
+    updateRectReadout();   // reflect the window's physical rect (incl. OSC-set / dragged) into the test fields
+
     // Brand filter (preserve the selected brand across rebuilds).
     const juce::String selBrand = (brandFilter.getSelectedId() > 1) ? brandFilter.getText() : juce::String();
     brandFilter.clear (juce::dontSendNotification);
@@ -121,6 +124,16 @@ void CustosEditor::refresh()
     idField.setVisible (showId);
     const int targetH = showId ? 210 : 178;
     if (getHeight() != targetH) setSize (360, targetH);
+}
+
+void CustosEditor::updateRectReadout()
+{
+    if (! proc.isSynthWindowVisible()) return;
+    const auto rp = proc.currentSynthWindowPhysical();
+    testX.setText (juce::String (rp.getX()),      juce::dontSendNotification);
+    testY.setText (juce::String (rp.getY()),      juce::dontSendNotification);
+    testW.setText (juce::String (rp.getWidth()),  juce::dontSendNotification);
+    testH.setText (juce::String (rp.getHeight()), juce::dontSendNotification);
 }
 
 void CustosEditor::rebuildInstrumentList()
@@ -189,12 +202,14 @@ void CustosEditor::resized()
     r.removeFromTop (8);
 
     auto testRow = r.removeFromTop (24);
-    testX.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
-    testY.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
-    testW.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (4);
-    testH.setBounds (testRow.removeFromLeft (44)); testRow.removeFromLeft (8);
-    testMovable.setBounds (testRow.removeFromLeft (78));
-    openFixedButton.setBounds (testRow.removeFromRight (84));
+    testX.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
+    testY.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
+    testW.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
+    testH.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (6);
+    openFixedButton.setBounds (testRow.removeFromRight (78));
+    testRow.removeFromRight (6);
+    testMovable.setBounds (testRow.removeFromLeft (72));
+    testClamp.setBounds   (testRow.removeFromLeft (64));
     r.removeFromTop (8);
 
     auto idRow = r.removeFromTop (24);
