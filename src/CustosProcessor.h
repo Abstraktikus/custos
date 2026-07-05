@@ -18,7 +18,7 @@ class CustosOscServer;   // forward declaration (unique_ptr member; defined in C
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
 
 // Which window (if any) to keep always-on-top.
-enum OnTopMode { OnTopOff, OnTopThis, OnTopInstrument };
+enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
 class CustosProcessor : public juce::AudioProcessor
 {
@@ -101,6 +101,9 @@ public:
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
+
+    // F3/F6: show (if needed) + place the synth window at a PHYSICAL-pixel rect (DPI-mapped). Message thread.
+    void setSynthWindowRect (int x, int y, int w, int h, bool movable);
 
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter

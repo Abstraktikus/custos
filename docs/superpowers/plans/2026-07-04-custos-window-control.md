@@ -83,6 +83,7 @@ private:
 
 ```cpp
 #include "SynthWindow.h"
+#include <juce_audio_processors/juce_audio_processors.h>   // for AudioProcessorEditor (dynamic_cast in applyRect)
 
 namespace custos
 {

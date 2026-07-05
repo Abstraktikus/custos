@@ -1,24 +1,43 @@
 #include "SynthWindow.h"
+#include <juce_audio_processors/juce_audio_processors.h>
 
 namespace custos
 {
-SynthWindow::SynthWindow (const juce::String& title, juce::Component* editor, std::function<void()> onClose)
-    : juce::DocumentWindow (title, juce::Colour (0xff2b2b2b), juce::DocumentWindow::closeButton),
-      onCloseCallback (std::move (onClose))
+SynthWindow::SynthWindow (juce::Component* editor)
+    : juce::ResizableWindow ("Custos Synth", juce::Colour (0xff2b2b2b), true)   // addToDesktop; no title bar
 {
-    jassert (editor != nullptr);             // the sole caller only constructs us with a real editor
-    setUsingNativeTitleBar (true);
-    setContentOwned (editor, true);          // takes ownership; window tracks the editor's size,
-                                             // so a synth that resizes its own GUI resizes this window
-    setResizable (false, false);             // no user drag-resize; content drives the size
+    setContentOwned (editor, true);   // window tracks the editor's native size until applyRect overrides it
     centreWithSize (getWidth(), getHeight());
     setVisible (true);
 }
 
-void SynthWindow::closeButtonPressed()
+void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
 {
-    // Do not delete ourselves inside our own callback; defer to the owner.
-    if (onCloseCallback)
-        juce::MessageManager::callAsync (onCloseCallback);
+    if (auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent()))
+    {
+        if (ed->isResizable())
+        {
+            ed->setTransform ({});                                    // clear any prior scale
+            ed->setSize (logical.getWidth(), logical.getHeight());
+        }
+        else if (ed->getWidth() > 0 && ed->getHeight() > 0)
+        {
+            ed->setTransform (juce::AffineTransform::scale (
+                (float) logical.getWidth()  / (float) ed->getWidth(),
+                (float) logical.getHeight() / (float) ed->getHeight()));
+        }
+    }
+    setBounds (logical);
+    draggable = movable;
+}
+
+void SynthWindow::mouseDown (const juce::MouseEvent& e)
+{
+    if (draggable) dragger.startDraggingComponent (this, e);
+}
+
+void SynthWindow::mouseDrag (const juce::MouseEvent& e)
+{
+    if (draggable) dragger.dragComponent (this, e, nullptr);
 }
 }

@@ -229,14 +229,7 @@ void CustosProcessor::showSynthWindow()
     if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
     if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
     {
-        // The window's close button defers this callback via the message queue; it can outlive
-        // both the window and this processor. Guard with a weak token so a late dispatch after
-        // ~CustosProcessor is a safe no-op (not a use-after-free).
-        std::weak_ptr<bool> weak = aliveToken;
-        synthWindow = std::make_unique<SynthWindow> (
-            kProduct + juce::String (" - ") + inner->getName(),
-            ed,
-            [this, weak] { if (! weak.expired()) hideSynthWindow(); });
+        synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
     }
     refreshEditor();
@@ -249,8 +242,18 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
         synthWindow->setAlwaysOnTop (mode == OnTopInstrument);
     if (auto* e = getActiveEditor())
         if (auto* top = e->getTopLevelComponent())
-            top->setAlwaysOnTop (mode == OnTopThis);
+            top->setAlwaysOnTop (mode == OnTopCustos);
     refreshEditor();
+}
+
+void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable)
+{
+    if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
+    if (synthWindow == nullptr) return;              // no inner / editor-less synth
+
+    const auto logical = juce::Desktop::getInstance().getDisplays()
+                             .physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+    synthWindow->applyRect (logical, movable);
 }
 
 void CustosProcessor::hideSynthWindow()
