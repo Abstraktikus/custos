@@ -136,7 +136,7 @@ void CustosOscServer::announceHere()
 {
     if (ackReady)
         ackSender.send (buildHere (currentN, proc.modeString(), proc.innerSynthName(),
-                                   proc.boundParamCount(), oscPortForIdentity (currentN)));
+                                   proc.boundParamCount(), oscPortForIdentity (currentN), proc.facadeSize()));
 }
 
 void CustosOscServer::ack (const juce::String& text)

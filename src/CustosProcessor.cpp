@@ -105,7 +105,7 @@ void CustosProcessor::clear()
 void CustosProcessor::emitLoaded()
 {
     if (outboundSink)
-        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount));
+        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
 }
 
 void CustosProcessor::dumpParams (int start, int count)

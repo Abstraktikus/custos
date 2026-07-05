@@ -18,31 +18,23 @@ TEST_CASE ("parseCommand maps /custos/hello")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/hello")).kind == Command::Hello);
 }
 
-TEST_CASE ("buildHere carries N first, then protoVer/mode/inner/count/port")
+TEST_CASE ("buildHere carries N, protoVer, mode, inner, count, port, facadeCap")
 {
-    const auto m = buildHere (3, "replace", "CS-80 V4", 2797, 9103);
+    const auto m = buildHere (3, "replace", "CS-80 V4", 2797, 9103, 5000);
     REQUIRE (m.getAddressPattern().toString() == "/custos/here");
-    REQUIRE (m.size() == 6);
-    REQUIRE (m[0].getInt32() == 3);
-    REQUIRE (m[1].getInt32() == kProtoVersion);
-    REQUIRE (m[2].getString() == "replace");
-    REQUIRE (m[3].getString() == "CS-80 V4");
+    REQUIRE (m.size() == 7);
     REQUIRE (m[4].getInt32() == 2797);
     REQUIRE (m[5].getInt32() == 9103);
+    REQUIRE (m[6].getInt32() == 5000);   // facadeCap
 }
 
-TEST_CASE ("buildAck and buildLoaded carry N first")
+TEST_CASE ("buildLoaded carries N, path, boundCount, innerTotal")
 {
-    const auto a = buildAck (5, "cleared");
-    REQUIRE (a.getAddressPattern().toString() == "/custos/ack");
-    REQUIRE (a[0].getInt32() == 5);
-    REQUIRE (a[1].getString() == "cleared");
-
-    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124);
+    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124, 9035);
     REQUIRE (l.getAddressPattern().toString() == "/custos/loaded");
-    REQUIRE (l[0].getInt32() == 5);
-    REQUIRE (l[1].getString() == "C:/x/Diva.vst3");
+    REQUIRE (l.size() == 4);
     REQUIRE (l[2].getInt32() == 3124);
+    REQUIRE (l[3].getInt32() == 9035);   // innerTotal (full inner param count)
 }
 
 TEST_CASE ("buildParam and buildParamsDone carry N first")

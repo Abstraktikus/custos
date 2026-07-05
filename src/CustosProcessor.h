@@ -89,6 +89,10 @@ public:
     int facadeSize() const noexcept { return (int) facade.size(); }
     int boundParamCount() const noexcept { return boundCount; }
 
+    // Full parameter count of the loaded inner synth (0 if none). May exceed facadeSize():
+    // then the top (innerParamTotal - facadeSize) params are unbound / uncontrollable.
+    int innerParamTotal() const noexcept { return inner != nullptr ? (int) inner->getParameters().size() : 0; }
+
     // M2 synth-window API — message thread only.
     void toggleSynthWindow();
     void showSynthWindow();

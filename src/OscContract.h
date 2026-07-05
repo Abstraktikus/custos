@@ -16,9 +16,9 @@ inline int oscPortForIdentity (int n)
 }
 
 inline juce::OSCMessage buildHere (int n, const juce::String& mode, const juce::String& inner,
-                                   int boundCount, int port)
+                                   int boundCount, int port, int facadeCap)
 {
-    return juce::OSCMessage ("/custos/here", n, kProtoVersion, mode, inner, boundCount, port);
+    return juce::OSCMessage ("/custos/here", n, kProtoVersion, mode, inner, boundCount, port, facadeCap);
 }
 
 inline juce::OSCMessage buildAck (int n, const juce::String& text)
@@ -26,9 +26,9 @@ inline juce::OSCMessage buildAck (int n, const juce::String& text)
     return juce::OSCMessage ("/custos/ack", n, text);
 }
 
-inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount)
+inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount, int innerTotal)
 {
-    return juce::OSCMessage ("/custos/loaded", n, path, boundCount);
+    return juce::OSCMessage ("/custos/loaded", n, path, boundCount, innerTotal);
 }
 
 inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name)
