@@ -178,6 +178,15 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             proc.favoritesEnd();
             writeFavorites (favoritesConfigFile(), proc.getFavorites());   // shared machine config
             break;
+        case Command::WindowShow:
+            proc.showSynthWindow();
+            break;
+        case Command::WindowHide:
+            proc.hideSynthWindow();
+            break;
+        case Command::WindowRect:
+            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable);
+            break;
         case Command::Unknown:
         default:
             ack ("error unknown " + msg.getAddressPattern().toString());
