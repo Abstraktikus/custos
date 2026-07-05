@@ -13,6 +13,7 @@ SynthWindow::SynthWindow (juce::Component* editor)
 
 void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
 {
+    const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // resized() won't re-emit; caller emits once
     if (auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent()))
     {
         if (ed->isResizable())
@@ -31,6 +32,18 @@ void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
     draggable = movable;
 }
 
+void SynthWindow::moved()
+{
+    if (onReadout) onReadout();     // live x/y readout follows a drag
+}
+
+void SynthWindow::resized()
+{
+    juce::ResizableWindow::resized();                       // lay out the hosted editor first
+    if (onReadout) onReadout();                             // live w/h readout (incl. inner-synth zoom)
+    if (! applyingRect && onCommit) onCommit();             // a content-driven resize reports to KM
+}
+
 void SynthWindow::mouseDown (const juce::MouseEvent& e)
 {
     dragged = false;
@@ -40,14 +53,13 @@ void SynthWindow::mouseDown (const juce::MouseEvent& e)
 void SynthWindow::mouseDrag (const juce::MouseEvent& e)
 {
     if (! draggable) return;
-    dragger.dragComponent (this, e, nullptr);
+    dragger.dragComponent (this, e, nullptr);   // moved() fires the live readout
     dragged = true;
-    if (onMoved) onMoved();        // live UI readout follows the drag
 }
 
 void SynthWindow::mouseUp (const juce::MouseEvent&)
 {
-    if (draggable && dragged && onDragEnd) onDragEnd();   // report the final position once
+    if (draggable && dragged && onCommit) onCommit();   // report the final position once
     dragged = false;
 }
 }

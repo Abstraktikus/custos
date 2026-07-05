@@ -231,8 +231,8 @@ void CustosProcessor::showSynthWindow()
     {
         synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
-        synthWindow->onMoved   = [this] { updateEditorRectReadout(); };          // live readout while dragging
-        synthWindow->onDragEnd = [this] { emitWindowRect(); updateEditorRectReadout(); };  // report final pos
+        synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
+        synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
     }
     refreshEditor();
 }

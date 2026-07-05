@@ -34,6 +34,7 @@ private:
     void commitIdentity();
     void rebuildInstrumentList();
     bool idVisible() const;
+    void scaleWindow (double factor);   // scale the synth window's current rect proportionally (keeps top-left)
 
     CustosProcessor& proc;
 
@@ -48,6 +49,7 @@ private:
     juce::ToggleButton testMovable { "movable" };
     juce::ToggleButton testClamp   { "clamp" };    // constrain to monitor work area (config phase)
     juce::TextButton   openFixedButton { "Open fixed" };
+    juce::TextButton   scaleDown { "-" }, scaleUp { "+" };   // proportional resize of the synth window
 
     juce::Label      volumeLabel;  // "Volume"
     juce::Slider     volumeFader { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };

@@ -1,5 +1,6 @@
 #include "CustosEditor.h"
 #include "CustosProcessor.h"
+#include <cmath>
 
 namespace custos
 {
@@ -39,6 +40,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     setupNum (testX, "x"); setupNum (testY, "y"); setupNum (testW, "w"); setupNum (testH, "h");
     addAndMakeVisible (testMovable);
     addAndMakeVisible (testClamp);
+    scaleDown.onClick = [this] { scaleWindow (1.0 / 1.1); };
+    scaleUp.onClick   = [this] { scaleWindow (1.1); };
+    addAndMakeVisible (scaleDown);
+    addAndMakeVisible (scaleUp);
     openFixedButton.onClick = [this]
     {
         proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
@@ -122,8 +127,18 @@ void CustosEditor::refresh()
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = showId ? 210 : 178;
+    const int targetH = showId ? 240 : 208;
     if (getHeight() != targetH) setSize (360, targetH);
+}
+
+void CustosEditor::scaleWindow (double factor)
+{
+    const auto r = proc.currentSynthWindowPhysical();
+    if (r.isEmpty()) return;   // no window open
+    const int nw = juce::jmax (60, (int) std::lround (r.getWidth()  * factor));
+    const int nh = juce::jmax (60, (int) std::lround (r.getHeight() * factor));
+    proc.setSynthWindowRect (r.getX(), r.getY(), nw, nh,
+                             testMovable.getToggleState(), testClamp.getToggleState());
 }
 
 void CustosEditor::updateRectReadout()
@@ -201,15 +216,22 @@ void CustosEditor::resized()
     onTopBox.setBounds   (onTopRow.removeFromLeft (130));
     r.removeFromTop (8);
 
-    auto testRow = r.removeFromTop (24);
-    testX.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
-    testY.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
-    testW.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (3);
-    testH.setBounds (testRow.removeFromLeft (40)); testRow.removeFromLeft (6);
-    openFixedButton.setBounds (testRow.removeFromRight (78));
-    testRow.removeFromRight (6);
-    testMovable.setBounds (testRow.removeFromLeft (72));
-    testClamp.setBounds   (testRow.removeFromLeft (64));
+    // Test row 1: physical rect fields + Open fixed.
+    auto rectRow = r.removeFromTop (24);
+    testX.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testY.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testW.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
+    testH.setBounds (rectRow.removeFromLeft (44));
+    openFixedButton.setBounds (rectRow.removeFromRight (84));
+    r.removeFromTop (6);
+
+    // Test row 2: movable / clamp toggles + proportional scale.
+    auto optRow = r.removeFromTop (24);
+    testMovable.setBounds (optRow.removeFromLeft (78));
+    testClamp.setBounds   (optRow.removeFromLeft (64));
+    scaleUp.setBounds   (optRow.removeFromRight (30));
+    optRow.removeFromRight (4);
+    scaleDown.setBounds (optRow.removeFromRight (30));
     r.removeFromTop (8);
 
     auto idRow = r.removeFromTop (24);
