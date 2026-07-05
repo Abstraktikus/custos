@@ -66,6 +66,30 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/window")
+    {
+        if (msg.size() >= 1 && msg[0].isString())
+        {
+            const auto m = msg[0].getString();
+            if (m == "show") return { Command::WindowShow, {} };
+            if (m == "hide") return { Command::WindowHide, {} };
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/window/rect")
+    {
+        if (msg.size() >= 5 && msg[0].isInt32() && msg[1].isInt32() && msg[2].isInt32()
+            && msg[3].isInt32() && msg[4].isInt32())
+        {
+            Command c;
+            c.kind = Command::WindowRect;
+            c.rx = msg[0].getInt32(); c.ry = msg[1].getInt32();
+            c.rw = msg[2].getInt32(); c.rh = msg[3].getInt32();
+            c.movable = msg[4].getInt32() != 0;
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 

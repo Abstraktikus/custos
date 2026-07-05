@@ -119,3 +119,23 @@ TEST_CASE ("parseCommand rejects a malformed favourite entry")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/favorite", 0, juce::String ("x"))).kind == Command::Unknown);
 }
+
+TEST_CASE ("parseCommand maps /custos/window show and hide")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("show"))).kind == Command::WindowShow);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("hide"))).kind == Command::WindowHide);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("bogus"))).kind == Command::Unknown);
+}
+
+TEST_CASE ("parseCommand maps /custos/window/rect with five ints")
+{
+    const auto c = parseCommand (juce::OSCMessage ("/custos/window/rect", 100, 200, 640, 480, 1));
+    REQUIRE (c.kind == Command::WindowRect);
+    REQUIRE (c.rx == 100);
+    REQUIRE (c.ry == 200);
+    REQUIRE (c.rw == 640);
+    REQUIRE (c.rh == 480);
+    REQUIRE (c.movable == true);
+
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/rect", 1, 2, 3)).kind == Command::Unknown);
+}
