@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "FacadeParameter.h"
 #include "InnerBinding.h"
+#include "FavoritesStore.h"
 #include <juce_osc/juce_osc.h>
 #include <vector>
 #include <memory>
@@ -40,6 +41,14 @@ public:
 
     // F5: uniform output trim. dB -> linear; applied in processBlock. Message thread.
     void setVolumeDb (float db);
+
+    // F4 favourites (message thread). Push: begin -> add* -> end (commits + sorts). setFavorites for boot-load.
+    void favoritesBegin();
+    void favoritesAdd (const Favorite& f);
+    void favoritesEnd();
+    void setFavorites (std::vector<Favorite> favs);
+    const std::vector<Favorite>& getFavorites() const noexcept { return favorites; }
+    void loadFavorite (int index);   // loads getFavorites()[index]
 
     // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
     std::function<void(const juce::OSCMessage&)> outboundSink;
@@ -96,6 +105,9 @@ private:
     int  identityN = 0;        // operator-set; 0 = unassigned. Persisted (CUS v2).
     bool lastBindOk = false;   // did the OSC receiver bind BASE+N?
     std::atomic<float> masterGain { 1.0f };   // F5 linear output trim; 1.0 = unity (0 dB)
+    std::vector<Favorite> favorites;       // committed, sorted by favOrder
+    std::vector<Favorite> favAccumulator;  // during a begin..end push
+    void applyVolumeDefault (const juce::String& path);   // set the trim from the matching favourite (unity if none)
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden

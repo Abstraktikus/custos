@@ -6,6 +6,7 @@
 #include "StateCodec.h"
 #include "CustosOscServer.h"
 #include "OscContract.h"
+#include <algorithm>
 
 namespace custos
 {
@@ -89,6 +90,7 @@ CommandResult CustosProcessor::load (const juce::String& path)
     if (auto instance = SynthLoader::loadVST3 (path, sr, block, err))
     {
         loadInner (std::move (instance), path);
+        applyVolumeDefault (path);
         return { true, boundCount, "loaded " + path };
     }
     // Load failed: keep whatever is currently loaded.
@@ -125,6 +127,42 @@ void CustosProcessor::dumpParams (int start, int count)
 void CustosProcessor::setVolumeDb (float db)
 {
     masterGain.store (juce::Decibels::decibelsToGain (db));
+}
+
+static void sortByFavOrder (std::vector<Favorite>& v)
+{
+    std::sort (v.begin(), v.end(), [] (const Favorite& a, const Favorite& b) { return a.favOrder < b.favOrder; });
+}
+
+void CustosProcessor::favoritesBegin() { favAccumulator.clear(); }
+void CustosProcessor::favoritesAdd (const Favorite& f) { favAccumulator.push_back (f); }
+
+void CustosProcessor::favoritesEnd()
+{
+    favorites = std::move (favAccumulator);
+    favAccumulator.clear();
+    sortByFavOrder (favorites);
+    refreshEditor();
+}
+
+void CustosProcessor::setFavorites (std::vector<Favorite> favs)
+{
+    favorites = std::move (favs);
+    sortByFavOrder (favorites);
+    refreshEditor();
+}
+
+void CustosProcessor::loadFavorite (int index)
+{
+    if (index >= 0 && index < (int) favorites.size())
+        load (favorites[(size_t) index].path);
+}
+
+void CustosProcessor::applyVolumeDefault (const juce::String& path)
+{
+    for (const auto& f : favorites)
+        if (f.path == path) { setVolumeDb (f.gainDb); return; }
+    setVolumeDb (0.0f);   // not a favourite -> unity
 }
 
 void CustosProcessor::bindOsc()
