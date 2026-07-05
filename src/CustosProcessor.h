@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <atomic>
 
 namespace custos
 {
@@ -36,6 +37,9 @@ public:
     // F1: stream the bound params in [start, start+count) (clamped to boundCount) via outboundSink,
     // then a /custos/params/done. Message thread. No-op if outboundSink is null.
     void dumpParams (int start, int count);
+
+    // F5: uniform output trim. dB -> linear; applied in processBlock. Message thread.
+    void setVolumeDb (float db);
 
     // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
     std::function<void(const juce::OSCMessage&)> outboundSink;
@@ -91,6 +95,7 @@ private:
     juce::String   currentSynthPath;  // path of the loaded synth ("" = none); persisted
     int  identityN = 0;        // operator-set; 0 = unassigned. Persisted (CUS v2).
     bool lastBindOk = false;   // did the OSC receiver bind BASE+N?
+    std::atomic<float> masterGain { 1.0f };   // F5 linear output trim; 1.0 = unity (0 dB)
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden

@@ -122,6 +122,11 @@ void CustosProcessor::dumpParams (int start, int count)
     outboundSink (buildParamsDone (identityN, start, sent));
 }
 
+void CustosProcessor::setVolumeDb (float db)
+{
+    masterGain.store (juce::Decibels::decibelsToGain (db));
+}
+
 void CustosProcessor::bindOsc()
 {
     if (oscServer != nullptr)
@@ -159,11 +164,14 @@ void CustosProcessor::releaseResources()
 
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
-    const juce::SpinLock::ScopedTryLockType tl (swapLock);
-    if (tl.isLocked() && inner != nullptr)
-        inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
-    else
-        buffer.clear();                        // no synth, or a swap is in progress -> silence
+    {
+        const juce::SpinLock::ScopedTryLockType tl (swapLock);
+        if (tl.isLocked() && inner != nullptr)
+            inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
+        else
+            buffer.clear();                        // no synth, or a swap is in progress -> silence
+    }
+    buffer.applyGain (masterGain.load());          // F5 uniform trim (1.0 = unity)
 }
 
 bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
