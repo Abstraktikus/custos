@@ -27,6 +27,12 @@ Command parseCommand (const juce::OSCMessage& msg)
         return { Command::Clear, {} };
     if (addr == "/custos/hello")
         return { Command::Hello, {} };
+    if (addr == "/custos/params")
+    {
+        if (msg.size() >= 2 && msg[0].isInt32() && msg[1].isInt32())
+            return { Command::Params, {}, msg[0].getInt32(), msg[1].getInt32() };
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 

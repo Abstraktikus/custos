@@ -5,7 +5,12 @@ namespace custos
 {
 class CustosProcessor;
 
-struct Command { enum Kind { Load, Clear, Hello, Unknown } kind = Unknown; juce::String path; };
+struct Command
+{
+    enum Kind { Load, Clear, Hello, Params, Unknown } kind = Unknown;
+    juce::String path;
+    int start = 0, count = 0;   // Params
+};
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.
 Command parseCommand (const juce::OSCMessage& msg);

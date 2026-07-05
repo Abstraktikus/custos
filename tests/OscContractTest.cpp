@@ -44,3 +44,33 @@ TEST_CASE ("buildAck and buildLoaded carry N first")
     REQUIRE (l[1].getString() == "C:/x/Diva.vst3");
     REQUIRE (l[2].getInt32() == 3124);
 }
+
+TEST_CASE ("buildParam and buildParamsDone carry N first")
+{
+    const auto p = buildParam (7, 5, 0.5f, "Cutoff");
+    REQUIRE (p.getAddressPattern().toString() == "/custos/param");
+    REQUIRE (p[0].getInt32() == 7);
+    REQUIRE (p[1].getInt32() == 5);
+    REQUIRE (p[3].getString() == "Cutoff");
+
+    const auto d = buildParamsDone (7, 0, 3);
+    REQUIRE (d.getAddressPattern().toString() == "/custos/params/done");
+    REQUIRE (d[0].getInt32() == 7);
+    REQUIRE (d[1].getInt32() == 0);
+    REQUIRE (d[2].getInt32() == 3);
+}
+
+TEST_CASE ("parseCommand maps /custos/params with start and count")
+{
+    juce::OSCMessage msg ("/custos/params", 10, 50);
+    const auto c = parseCommand (msg);
+    REQUIRE (c.kind == Command::Params);
+    REQUIRE (c.start == 10);
+    REQUIRE (c.count == 50);
+}
+
+TEST_CASE ("parseCommand rejects /custos/params without two ints")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/params")).kind == Command::Unknown);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/params", 10)).kind == Command::Unknown);
+}
