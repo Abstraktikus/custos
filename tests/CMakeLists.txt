@@ -6,6 +6,7 @@ FetchContent_Declare(Catch2
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(custos_tests
+    ${CMAKE_SOURCE_DIR}/src/CustosProcessor.cpp
     FacadeParameterTest.cpp
     InnerBindingTest.cpp
     PassthroughTest.cpp

@@ -4,8 +4,12 @@
 namespace custos
 {
     // Facade parameter count reported to the host. GP queries the count at boot, so it
-    // MUST be fixed at construction. Start high (covers large synths); measure in GP, tune later.
-    inline constexpr int kFacadeParamCount = 5000;
+    // MUST be fixed at construction. Overridable per build target (facade-size ladder);
+    // default 5000 when no override is supplied.
+   #ifndef CUSTOS_FACADE_PARAM_COUNT
+    #define CUSTOS_FACADE_PARAM_COUNT 5000
+   #endif
+    inline constexpr int kFacadeParamCount = CUSTOS_FACADE_PARAM_COUNT;
 
     inline constexpr const char* kVendor  = "Kapellmeister";
     inline constexpr const char* kProduct = "Custos";
