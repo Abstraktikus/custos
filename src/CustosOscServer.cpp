@@ -205,6 +205,16 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::WindowRect:
             proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp);
             break;
+        case Command::MidiRoute:
+        {
+            std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = cmd.route[(size_t) i];
+            proc.setMidiRoute (r);
+            proc.emitMidiRoute();   // confirm the applied map
+            break;
+        }
+        case Command::MidiQuery:
+            proc.emitMidiRoute();
+            break;
         case Command::Unknown:
         default:
             ack ("error unknown " + msg.getAddressPattern().toString());

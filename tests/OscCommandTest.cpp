@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CustosOscServer.h"
+#include "CustosProcessor.h"
 
 using namespace custos;
 
@@ -48,4 +49,22 @@ TEST_CASE ("parseCommand rejects /custos/midi/route without 16 ints")
 TEST_CASE ("parseCommand maps /custos/midi/query")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/midi/query")).kind == Command::MidiQuery);
+}
+
+TEST_CASE ("emitMidiRoute sends the current map with N first")
+{
+    custos::CustosProcessor proc;
+    proc.setIdentity (9);
+    std::vector<juce::OSCMessage> sent;
+    proc.outboundSink = [&sent] (const juce::OSCMessage& m) { sent.push_back (m); };
+
+    std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = i == 7 ? 1 : 0;
+    proc.setMidiRoute (r);
+    proc.emitMidiRoute();
+
+    REQUIRE (sent.size() == 1);
+    REQUIRE (sent[0].getAddressPattern().toString() == "/custos/midi/route");
+    REQUIRE (sent[0].size() == 17);
+    REQUIRE (sent[0][0].getInt32() == 9);
+    REQUIRE (sent[0][8].getInt32() == 1);   // input ch 8 (arg index 8) -> out 1
 }

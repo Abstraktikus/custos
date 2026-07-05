@@ -217,6 +217,11 @@ std::array<int, 16> CustosProcessor::getMidiRoute() const
     return out;
 }
 
+void CustosProcessor::emitMidiRoute()
+{
+    if (outboundSink) outboundSink (buildMidiRoute (identityN, getMidiRoute()));
+}
+
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     std::array<std::uint8_t, 16> snap {};

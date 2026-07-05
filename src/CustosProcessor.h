@@ -118,6 +118,9 @@ public:
     void setMidiRoute (const std::array<int, 16>& route);   // values clamped to 0..16
     std::array<int, 16> getMidiRoute() const;
 
+    // Send /custos/midi/route (identity + current map) via outboundSink (no-op if null). Message thread.
+    void emitMidiRoute();
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
