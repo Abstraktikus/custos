@@ -33,6 +33,10 @@ public:
     bool identityBound() const noexcept { return lastBindOk; }
     juce::String modeString() const noexcept { return "replace"; }   // real toggle = F2
 
+    // F1: stream the bound params in [start, start+count) (clamped to boundCount) via outboundSink,
+    // then a /custos/params/done. Message thread. No-op if outboundSink is null.
+    void dumpParams (int start, int count);
+
     // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
     std::function<void(const juce::OSCMessage&)> outboundSink;
 

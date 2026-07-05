@@ -106,6 +106,22 @@ void CustosProcessor::emitLoaded()
         outboundSink (buildLoaded (identityN, currentSynthPath, boundCount));
 }
 
+void CustosProcessor::dumpParams (int start, int count)
+{
+    if (! outboundSink) return;
+
+    const int from = juce::jmax (0, start);
+    const int to   = juce::jmin (boundCount, from + juce::jmax (0, count));
+    int sent = 0;
+    for (int i = from; i < to; ++i)
+    {
+        outboundSink (buildParam (identityN, i, facade[(size_t) i]->getValue(),
+                                  facade[(size_t) i]->getName (128)));
+        ++sent;
+    }
+    outboundSink (buildParamsDone (identityN, start, sent));
+}
+
 void CustosProcessor::bindOsc()
 {
     if (oscServer != nullptr)
