@@ -4,7 +4,7 @@
 
 namespace custos
 {
-struct Favorite { juce::String name, path; int favOrder = 0; float gainDb = 0.0f; };
+struct Favorite { juce::String name, path; int favOrder = 0; float gainDb = 0.0f; juce::String brand; };
 
 juce::String favoritesToJson (const std::vector<Favorite>& favs);
 std::vector<Favorite> favoritesFromJson (const juce::String& json);

@@ -94,13 +94,21 @@ TEST_CASE ("parseCommand maps the favourites push")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/favorites/begin")).kind == Command::FavBegin);
 
     juce::OSCMessage entry ("/custos/favorite", 0, juce::String ("Diva"),
-                            juce::String ("C:/x/Diva.vst3"), 3, -2.0f);
+                            juce::String ("C:/x/Diva.vst3"), 3, -2.0f, juce::String ("u-he"));
     const auto e = parseCommand (entry);
     REQUIRE (e.kind == Command::FavEntry);
     REQUIRE (e.fav.name == "Diva");
     REQUIRE (e.fav.path == "C:/x/Diva.vst3");
     REQUIRE (e.fav.favOrder == 3);
     REQUIRE (e.fav.gainDb == -2.0f);
+    REQUIRE (e.fav.brand == "u-he");
+
+    // brand is optional (back-compat): a 5-arg entry parses with an empty brand.
+    juce::OSCMessage noBrand ("/custos/favorite", 0, juce::String ("Old"),
+                              juce::String ("C:/x/Old.vst3"), 1, 0.0f);
+    const auto nb = parseCommand (noBrand);
+    REQUIRE (nb.kind == Command::FavEntry);
+    REQUIRE (nb.fav.brand.isEmpty());
 
     const auto end = parseCommand (juce::OSCMessage ("/custos/favorites/end", 12));
     REQUIRE (end.kind == Command::FavEnd);

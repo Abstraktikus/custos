@@ -7,15 +7,17 @@ using Catch::Approx;
 
 TEST_CASE ("favorites JSON round-trips")
 {
-    std::vector<Favorite> favs { { "Diva", "C:/x/Diva.vst3", 1, -3.0f },
-                                 { "DX7",  "C:/x/DX7.vst3",  2,  0.0f } };
+    std::vector<Favorite> favs { { "Diva", "C:/x/Diva.vst3", 1, -3.0f, "u-he" },
+                                 { "DX7",  "C:/x/DX7.vst3",  2,  0.0f, "Arturia" } };
     const auto back = favoritesFromJson (favoritesToJson (favs));
     REQUIRE (back.size() == 2);
     REQUIRE (back[0].name == "Diva");
     REQUIRE (back[0].path == "C:/x/Diva.vst3");
     REQUIRE (back[0].favOrder == 1);
     REQUIRE (back[0].gainDb == Approx (-3.0f));
+    REQUIRE (back[0].brand == "u-he");
     REQUIRE (back[1].name == "DX7");
+    REQUIRE (back[1].brand == "Arturia");
 }
 
 TEST_CASE ("writeFavorites/readFavorites round-trip via a temp file")

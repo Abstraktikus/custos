@@ -48,7 +48,12 @@ Command parseCommand (const juce::OSCMessage& msg)
         {
             Command c;
             c.kind = Command::FavEntry;
-            c.fav  = { msg[1].getString(), msg[2].getString(), msg[3].getInt32(), msg[4].getFloat32() };
+            c.fav.name     = msg[1].getString();
+            c.fav.path     = msg[2].getString();
+            c.fav.favOrder = msg[3].getInt32();
+            c.fav.gainDb   = msg[4].getFloat32();
+            if (msg.size() >= 6 && msg[5].isString())   // brand optional (back-compat)
+                c.fav.brand = msg[5].getString();
             return c;
         }
         return { Command::Unknown, {} };

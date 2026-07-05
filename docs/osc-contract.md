@@ -39,7 +39,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
 | `/custos/favorites/begin` | — | start a favorites push |
-| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float` | one favorites entry |
+| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string` | one favorites entry (`brand` optional 6th arg — omit for none; used for the UI brand filter) |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
 | `/custos/window` | `target:string` (`custos`\|`plugin`\|`both`\|`hide`) | window visibility *(details TBD in F3/F6 spec)* |
 | `/custos/window/rect` | `x,y,w,h:int, movable:int` | window geometry *(details TBD in F3/F6 spec)* |
