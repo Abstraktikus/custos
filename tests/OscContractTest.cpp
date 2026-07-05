@@ -163,3 +163,8 @@ TEST_CASE ("buildWindowRect carries N first, then rect and movable")
     REQUIRE (m[4].getInt32() == 480);
     REQUIRE (m[5].getInt32() == 1);
 }
+
+TEST_CASE ("protoVer is 2 for contract v2")
+{
+    REQUIRE (custos::kProtoVersion == 2);
+}
