@@ -17,6 +17,9 @@ class CustosOscServer;   // forward declaration (unique_ptr member; defined in C
 
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
 
+// Which window (if any) to keep always-on-top.
+enum OnTopMode { OnTopOff, OnTopThis, OnTopInstrument };
+
 class CustosProcessor : public juce::AudioProcessor
 {
 public:
@@ -41,6 +44,7 @@ public:
 
     // F5: uniform output trim. dB -> linear; applied in processBlock. Message thread.
     void setVolumeDb (float db);
+    float volumeDb() const noexcept { return juce::Decibels::gainToDecibels (masterGain.load()); }
 
     // F4 favourites (message thread). Push: begin -> add* -> end (commits + sorts). setFavorites for boot-load.
     void favoritesBegin();
@@ -94,9 +98,9 @@ public:
     juce::String innerSynthName() const;
     juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
 
-    // Keep the synth window above other windows. Applies to the current window and future ones.
-    void setSynthWindowOnTop (bool onTop);
-    bool isSynthWindowOnTop() const noexcept { return synthWindowOnTop; }
+    // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
+    void setOnTopMode (OnTopMode mode);
+    OnTopMode getOnTopMode() const noexcept { return onTopMode; }
 
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
@@ -116,7 +120,7 @@ private:
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
     std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
-    bool synthWindowOnTop = false;              // keep the synth window always-on-top
+    OnTopMode onTopMode = OnTopOff;             // keep-on-top target
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;

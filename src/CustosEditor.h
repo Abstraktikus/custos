@@ -3,14 +3,22 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "FavoritesStore.h"
 #include <vector>
+#include <functional>
 
 namespace custos
 {
 class CustosProcessor;
 
-// Compact plugin editor: a top-right identity field, a Brand filter, an Instrument picker (favourites,
-// filtered by brand, reflecting the loaded synth) + Open button, and a keep-on-top toggle. Intercepts
-// the host's generic 5000-slider view.
+// A juce::Label that reports double-clicks (used as a hidden reveal for the identity field).
+struct ClickableLabel : juce::Label
+{
+    std::function<void()> onDoubleClick;
+    void mouseDoubleClick (const juce::MouseEvent&) override { if (onDoubleClick) onDoubleClick(); }
+};
+
+// Compact plugin editor: Brand filter, Instrument picker (favourites, reflecting the loaded synth) +
+// Open, master Volume fader, keep-on-top selector, and an identity field that hides once set (revealed
+// again by double-clicking the Brand label). Intercepts the host's generic 5000-slider view.
 class CustosEditor : public juce::AudioProcessorEditor
 {
 public:
@@ -19,30 +27,34 @@ public:
 
     void resized() override;
     void paint (juce::Graphics&) override;
-
-    // Sync all controls from processor state (favourites, loaded synth, identity, window state).
     void refresh();
 
 private:
     void commitIdentity();
-    void rebuildInstrumentList();   // filter favourites by the selected brand -> favPicker (+ reflect loaded synth)
+    void rebuildInstrumentList();
+    bool idVisible() const;
 
     CustosProcessor& proc;
 
-    juce::Label      idLabel;      // "Id"
-    juce::TextEditor idField;      // N (1..15)
-    juce::Label      idStatus;     // ":<port>" / collision / unassigned
-
-    juce::Label      brandLabel;   // "Brand"
-    juce::ComboBox   brandFilter;  // "All" + distinct brands
+    ClickableLabel   brandLabel;   // "Brand" — double-click reveals the identity field
+    juce::ComboBox   brandFilter;
 
     juce::Label      instrLabel;   // "Instrument"
-    juce::ComboBox   favPicker;    // favourites (filtered by brand); shows the loaded synth
-    juce::TextButton openButton { "Open" };          // open/close the synth window
+    juce::ComboBox   favPicker;
+    juce::TextButton openButton { "Open" };
 
-    juce::ToggleButton onTopToggle { "Keep window on top" };
+    juce::Label      volumeLabel;  // "Volume"
+    juce::Slider     volumeFader { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
+    juce::Label      dbLabel;      // "-3.0 dB"
 
-    std::vector<Favorite> filtered;   // favourites currently shown (after the brand filter)
+    juce::Label      onTopLabel;   // "On top"
+    juce::ComboBox   onTopBox;     // off / This / Instrument
+
+    juce::Label      idLabel;      // "Id"
+    juce::TextEditor idField;      // N (1..15); hidden once set
+
+    bool idRevealed = false;
+    std::vector<Favorite> filtered;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosEditor)
 };
