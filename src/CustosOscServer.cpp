@@ -68,6 +68,7 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
 {
     ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);
     proc.outboundSink = [this] (const juce::OSCMessage& m) { if (ackReady) ackSender.send (m); };
+    proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
 }
 
 CustosOscServer::~CustosOscServer()
@@ -137,6 +138,16 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::Volume:
             proc.setVolumeDb (cmd.gainDb);
+            break;
+        case Command::FavBegin:
+            proc.favoritesBegin();
+            break;
+        case Command::FavEntry:
+            proc.favoritesAdd (cmd.fav);
+            break;
+        case Command::FavEnd:
+            proc.favoritesEnd();
+            writeFavorites (favoritesConfigFile(), proc.getFavorites());   // shared machine config
             break;
         case Command::Unknown:
         default:
