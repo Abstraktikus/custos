@@ -11,6 +11,11 @@
 #ifndef CUSTOS_ACK_PORT
  #define CUSTOS_ACK_PORT 8000
 #endif
+// GP's OSC-in port: Custos mirrors the Voice-Selector feedback (/custos/browsing + /custos/loaded) here
+// so the GP-Script can drive browsing autonomously, in addition to the KM hub on CUSTOS_ACK_PORT.
+#ifndef CUSTOS_GP_FEEDBACK_PORT
+ #define CUSTOS_GP_FEEDBACK_PORT 54344
+#endif
 
 namespace custos
 {
@@ -126,8 +131,20 @@ Command parseCommand (const juce::OSCMessage& msg)
 
 CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
 {
-    ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);
-    proc.outboundSink = [this] (const juce::OSCMessage& m) { if (ackReady) ackSender.send (m); };
+    ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);          // KM hub :8000
+    gpReady  = gpSender.connect  (CUSTOS_ACK_HOST, CUSTOS_GP_FEEDBACK_PORT);  // GP OSC-in :54344
+    proc.outboundSink = [this] (const juce::OSCMessage& m)
+    {
+        if (ackReady) ackSender.send (m);   // everything to the KM hub (unchanged)
+        // Mirror ONLY the Voice-Selector feedback to GP so the GP-Script can browse autonomously
+        // (kept narrow: never mirror the /custos/param dump stream, which would flood GP's OSC-in).
+        if (gpReady)
+        {
+            const auto addr = m.getAddressPattern().toString();
+            if (addr == "/custos/browsing" || addr == "/custos/loaded")
+                gpSender.send (m);
+        }
+    };
     proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
 }
 
@@ -137,6 +154,7 @@ CustosOscServer::~CustosOscServer()
     receiver.removeListener (this);
     receiver.disconnect();
     ackSender.disconnect();
+    gpSender.disconnect();
 }
 
 bool CustosOscServer::bindToIdentity (int n)

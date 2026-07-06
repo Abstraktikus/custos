@@ -53,6 +53,11 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 
 ## 3. Custos → KM  (send to `127.0.0.1:8000`; first arg always `N`)
 
+> **GP mirror:** `/custos/browsing` and `/custos/loaded` are additionally sent to **GP's OSC-in
+> `127.0.0.1:54344`** (not just the KM hub), so the **GP-Script can drive the Voice-Selector
+> autonomously** without KM in the loop. Every other reply below goes to `:8000` only (the param-dump
+> stream is deliberately NOT mirrored, to avoid flooding GP's OSC-in).
+
 | Address | Args | Meaning |
 |---|---|---|
 | `/custos/here` | `N, protoVer:int, mode:string, inner:string, boundCount:int, port:int, facadeCap:int` | hello reply / boot announce; `facadeCap` is this build's facade size (see §4 facade ladder) |

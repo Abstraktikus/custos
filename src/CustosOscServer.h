@@ -44,8 +44,10 @@ private:
 
     CustosProcessor& proc;
     juce::OSCReceiver receiver;
-    juce::OSCSender   ackSender;
+    juce::OSCSender   ackSender;   // KM hub :8000 (all feedback)
+    juce::OSCSender   gpSender;    // GP OSC-in :54344 (mirrors /custos/browsing + /custos/loaded only)
     bool ackReady = false;
+    bool gpReady  = false;
     int  currentN = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosOscServer)
