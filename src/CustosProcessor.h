@@ -96,9 +96,10 @@ public:
     int innerParamTotal() const noexcept { return inner != nullptr ? (int) inner->getParameters().size() : 0; }
 
     // M2 synth-window API — message thread only.
-    void toggleSynthWindow();          // "Open": titled window (native title bar)
-    void showSynthWindow();            // borderless (used by "Open fixed" / OSC)
-    void showSynthWindowTitled();      // titled window with native title bar + close
+    void toggleSynthWindow();              // Instrument-label double-click: titled window
+    void showSynthWindow();                // borderless at natural size (OSC / internal)
+    void showSynthWindowBorderless (bool movable);   // "Open" with fixed=on: borderless, natural size, draggable if movable
+    void showSynthWindowTitled();          // "Open" with fixed=off: titled window, native title bar + close
     void hideSynthWindow();
     bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr || titledWindow != nullptr; }
     bool hasInnerSynth() const noexcept { return inner != nullptr; }
@@ -154,8 +155,11 @@ private:
     void applyVolumeDefault (const juce::String& path);   // set the trim from the matching favourite (unity if none)
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
-    std::unique_ptr<SynthWindow> synthWindow;         // borderless ("Open fixed"/OSC); nullptr == hidden
-    std::unique_ptr<TitledSynthWindow> titledWindow;  // titled ("Open"); nullptr == hidden
+    std::unique_ptr<SynthWindow> synthWindow;         // borderless (fixed/OSC); nullptr == hidden
+    std::unique_ptr<TitledSynthWindow> titledWindow;  // titled; nullptr == hidden
+    enum WindowMode { WinNone, WinTitled, WinBorderless };
+    WindowMode windowMode = WinNone;      // remembered so a load (browse/OSC) re-shows the window with the new synth
+    bool windowBorderlessMovable = false; // last movable flag for the borderless "Open"
     OnTopMode onTopMode = OnTopOff;             // keep-on-top target
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free

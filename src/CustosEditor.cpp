@@ -32,14 +32,9 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     // placed at the x/y/w/h rect with movable/clamp. One window at a time; Close tears down whichever is open.
     openButton.onClick = [this]
     {
-        if (proc.isSynthWindowVisible())
-            proc.hideSynthWindow();
-        else if (fixedToggle.getToggleState())
-            proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
-                                     testW.getText().getIntValue(), testH.getText().getIntValue(),
-                                     testMovable.getToggleState(), testClamp.getToggleState());
-        else
-            proc.showSynthWindowTitled();
+        if (proc.isSynthWindowVisible())     proc.hideSynthWindow();
+        else if (fixedToggle.getToggleState()) proc.showSynthWindowBorderless (testMovable.getToggleState());
+        else                                 proc.showSynthWindowTitled();
         refresh();
     };
     addAndMakeVisible (openButton);
@@ -285,11 +280,11 @@ void CustosEditor::resized()
     testY.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testW.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testH.setBounds (rectRow.removeFromLeft (44));
-    fixedToggle.setBounds (rectRow.removeFromRight (84));
     r.removeFromTop (6);
 
-    // Test row 2: movable / clamp toggles + proportional scale.
+    // Test row 2: fixed / movable / clamp toggles + proportional scale.
     auto optRow = r.removeFromTop (24);
+    fixedToggle.setBounds (optRow.removeFromLeft (58));
     testMovable.setBounds (optRow.removeFromLeft (78));
     testClamp.setBounds   (optRow.removeFromLeft (64));
     scaleUp.setBounds   (optRow.removeFromRight (30));

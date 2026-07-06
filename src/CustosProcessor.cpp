@@ -66,6 +66,8 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
+    const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
+    const bool       reopenMovable = windowBorderlessMovable;
     hideSynthWindow();
 
     // Slow work OUTSIDE the lock: prepare the incoming inner in ITS OWN bus layout (multi-out safe).
@@ -91,6 +93,12 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
     currentSynthPath = (inner != nullptr) ? path : juce::String();
+
+    if (inner != nullptr)   // re-show the window with the NEW synth (so browsing displays each instrument)
+    {
+        if      (reopenAs == WinTitled)     showSynthWindowTitled();
+        else if (reopenAs == WinBorderless) showSynthWindowBorderless (reopenMovable);
+    }
     refreshEditor();
     emitLoaded();
     return inner != nullptr;
@@ -341,8 +349,16 @@ void CustosProcessor::showSynthWindow()
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
         synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
         synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
+        windowMode = WinBorderless;
     }
     refreshEditor();
+}
+
+void CustosProcessor::showSynthWindowBorderless (bool movable)   // "Open" with fixed=on
+{
+    showSynthWindow();                       // borderless, natural size, centred (the proven path)
+    windowBorderlessMovable = movable;
+    if (synthWindow != nullptr) synthWindow->setDraggable (movable);
 }
 
 void CustosProcessor::showSynthWindowTitled()
@@ -353,8 +369,9 @@ void CustosProcessor::showSynthWindowTitled()
     {
         auto w = std::make_unique<TitledSynthWindow> (inner->getName(), ed);
         w->setAlwaysOnTop (onTopMode == OnTopInstrument);
-        w->onCloseButton = [this] { titledWindow.reset(); refreshEditor(); };   // native close tears it down
+        w->onCloseButton = [this] { titledWindow.reset(); windowMode = WinNone; refreshEditor(); };   // native close
         titledWindow = std::move (w);
+        windowMode = WinTitled;
     }
     refreshEditor();
 }
@@ -416,6 +433,7 @@ void CustosProcessor::hideSynthWindow()
 {
     synthWindow.reset();
     titledWindow.reset();
+    windowMode = WinNone;
     refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
 }
 
