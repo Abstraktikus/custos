@@ -84,6 +84,22 @@ Per block:
 - **Build + real M1 boot test:** deploy, boot `VSTProbe.gig` with M1 in N=2 → loads WITHOUT crash
   (confirms the audio-bus root cause and the fix in one).
 
-## 8. Open questions
+## 8. Bundled small editor fixes (Martin 2026-07-06)
+
+Small, unrelated-to-audio polish carried in the same branch/PR:
+
+- **Instrument picker placeholder:** `favPicker.setTextWhenNothingSelected("Instrument…")` renders a
+  garbled ellipsis (encoding). Change to an **empty string** at BOTH sites — the ctor and the no-synth
+  branch of `rebuildInstrumentList` — so the picker shows **nothing** when nothing is selected (the
+  "Instrument" label already names it). When a synth IS loaded, keep showing its name.
+- **Titled vs borderless synth window:** split the two open paths —
+  - **"Open"** opens the hosted synth's editor in a **titled window** (native title bar; movable via the
+    bar, has a close button). This is the new expected default.
+  - **"Open fixed"** stays **borderless** (current behavior) and is the only path affected by the
+    **movable / clamp** toggles and the x/y/w/h rect.
+  - Fixes the earlier "can't open the synth window with a title bar in any setting" observation. Keep the
+    existing OSC window verbs (`/custos/window …`) working for the borderless/fixed path.
+
+## 9. Open questions
 
 None blocking. Exact editor placement of the "Main L/R only" toggle is a plan-level layout detail.
