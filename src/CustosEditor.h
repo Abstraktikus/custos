@@ -59,6 +59,8 @@ private:
     juce::Label      onTopLabel;   // "On top"
     juce::ComboBox   onTopBox;     // off / This / Instrument
 
+    juce::ToggleButton mainLR { "Main L/R only" };   // local audio-fold toggle (drives proc.setMainLROnly)
+
     juce::Label      idLabel;      // "Id"
     juce::TextEditor idField;      // N (1..15); hidden once set
 

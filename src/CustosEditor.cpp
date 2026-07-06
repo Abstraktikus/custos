@@ -21,7 +21,7 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     instrLabel.setInterceptsMouseClicks (true, false);
     instrLabel.onDoubleClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (instrLabel);
-    favPicker.setTextWhenNothingSelected ("Instrument…");
+    favPicker.setTextWhenNothingSelected (juce::String());
     favPicker.onChange = [this]
     {
         const int i = favPicker.getSelectedItemIndex();
@@ -75,6 +75,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     onTopBox.addItem ("Instrument", 3);
     onTopBox.onChange = [this] { proc.setOnTopMode ((OnTopMode) onTopBox.getSelectedItemIndex()); };
     addAndMakeVisible (onTopBox);
+
+    // Local audio-fold toggle: sum all inner outputs onto stereo Out 1 (no OSC).
+    mainLR.onClick = [this] { proc.setMainLROnly (mainLR.getToggleState()); };
+    addAndMakeVisible (mainLR);
 
     // Identity (bottom-left; hidden once set).
     idLabel.setText ("Id", juce::dontSendNotification);
@@ -146,11 +150,13 @@ void CustosEditor::refresh()
     for (int i = 0; i < 16; ++i)
         routeBox[(size_t) i].setSelectedId (routeIds[(size_t) i], juce::dontSendNotification);
 
+    mainLR.setToggleState (proc.mainLROnly(), juce::dontSendNotification);
+
     // Identity visibility + adaptive window height.
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = (showId ? 240 : 208) + 104;   // + MIDI matrix section
+    const int targetH = (showId ? 240 : 208) + 104 + 28;   // + MIDI matrix section + Main-L/R toggle row
     if (getHeight() != targetH) setSize (360, targetH);
 }
 
@@ -196,7 +202,7 @@ void CustosEditor::rebuildInstrumentList()
     {
         favPicker.setSelectedId (0, juce::dontSendNotification);
         favPicker.setTextWhenNothingSelected (proc.hasInnerSynth() ? proc.innerSynthName()
-                                                                    : juce::String ("Instrument…"));
+                                                                    : juce::String());
     }
 }
 
@@ -263,6 +269,9 @@ void CustosEditor::resized()
         }
         r.removeFromTop (4);
     }
+
+    mainLR.setBounds (r.removeFromTop (22).removeFromLeft (160));
+    r.removeFromTop (6);
 
     // Test row 1: physical rect fields + Open fixed.
     auto rectRow = r.removeFromTop (24);
