@@ -380,10 +380,10 @@ void CustosProcessor::refreshEditor()
         e->refresh();
 }
 
-void CustosProcessor::toggleSynthWindow()   // the editor "Open" button -> titled window
+void CustosProcessor::toggleSynthWindow()   // Instrument-label double-click: one window at a time
 {
-    if (titledWindow != nullptr) { titledWindow.reset(); refreshEditor(); }
-    else                          showSynthWindowTitled();
+    if (isSynthWindowVisible()) hideSynthWindow();   // close whichever (titled or borderless) is open
+    else                        showSynthWindowTitled();
 }
 
 void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)

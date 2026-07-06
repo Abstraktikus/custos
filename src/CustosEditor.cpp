@@ -28,7 +28,20 @@ CustosEditor::CustosEditor (CustosProcessor& p)
         if (i >= 0 && i < (int) filtered.size()) proc.load (filtered[(size_t) i].path);
     };
     addAndMakeVisible (favPicker);
-    openButton.onClick = [this] { proc.toggleSynthWindow(); refresh(); };
+    // Single Open/Close. "fixed" (below) chooses the window kind: unchecked = titled; checked = borderless
+    // placed at the x/y/w/h rect with movable/clamp. One window at a time; Close tears down whichever is open.
+    openButton.onClick = [this]
+    {
+        if (proc.isSynthWindowVisible())
+            proc.hideSynthWindow();
+        else if (fixedToggle.getToggleState())
+            proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
+                                     testW.getText().getIntValue(), testH.getText().getIntValue(),
+                                     testMovable.getToggleState(), testClamp.getToggleState());
+        else
+            proc.showSynthWindowTitled();
+        refresh();
+    };
     addAndMakeVisible (openButton);
 
     // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
@@ -45,14 +58,7 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     scaleUp.onClick   = [this] { scaleWindow (1.1); };
     addAndMakeVisible (scaleDown);
     addAndMakeVisible (scaleUp);
-    openFixedButton.onClick = [this]
-    {
-        proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
-                                 testW.getText().getIntValue(), testH.getText().getIntValue(),
-                                 testMovable.getToggleState(), testClamp.getToggleState());
-        refresh();
-    };
-    addAndMakeVisible (openFixedButton);
+    addAndMakeVisible (fixedToggle);
 
     // Master volume: label + horizontal fader + dB readout.
     volumeLabel.setText ("Volume", juce::dontSendNotification);
@@ -279,7 +285,7 @@ void CustosEditor::resized()
     testY.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testW.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testH.setBounds (rectRow.removeFromLeft (44));
-    openFixedButton.setBounds (rectRow.removeFromRight (84));
+    fixedToggle.setBounds (rectRow.removeFromRight (84));
     r.removeFromTop (6);
 
     // Test row 2: movable / clamp toggles + proportional scale.

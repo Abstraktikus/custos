@@ -49,7 +49,7 @@ private:
     juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
     juce::ToggleButton testMovable { "movable" };
     juce::ToggleButton testClamp   { "clamp" };    // constrain to monitor work area (config phase)
-    juce::TextButton   openFixedButton { "Open fixed" };
+    juce::ToggleButton fixedToggle { "fixed" };   // true = the single Open button opens the borderless/fixed window
     juce::TextButton   scaleDown { "-" }, scaleUp { "+" };   // proportional resize of the synth window
 
     juce::Label      volumeLabel;  // "Volume"
