@@ -18,41 +18,39 @@ TEST_CASE ("parseCommand maps /custos/hello")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/hello")).kind == Command::Hello);
 }
 
-TEST_CASE ("buildHere carries N first, then protoVer/mode/inner/count/port")
+TEST_CASE ("buildHere carries N, protoVer, mode, inner, count, port, facadeCap")
 {
-    const auto m = buildHere (3, "replace", "CS-80 V4", 2797, 9103);
+    const auto m = buildHere (3, "replace", "CS-80 V4", 2797, 9103, 5000);
     REQUIRE (m.getAddressPattern().toString() == "/custos/here");
-    REQUIRE (m.size() == 6);
-    REQUIRE (m[0].getInt32() == 3);
-    REQUIRE (m[1].getInt32() == kProtoVersion);
-    REQUIRE (m[2].getString() == "replace");
-    REQUIRE (m[3].getString() == "CS-80 V4");
+    REQUIRE (m.size() == 7);
     REQUIRE (m[4].getInt32() == 2797);
     REQUIRE (m[5].getInt32() == 9103);
+    REQUIRE (m[6].getInt32() == 5000);   // facadeCap
 }
 
-TEST_CASE ("buildAck and buildLoaded carry N first")
+TEST_CASE ("buildLoaded carries N, path, boundCount, innerTotal")
 {
-    const auto a = buildAck (5, "cleared");
-    REQUIRE (a.getAddressPattern().toString() == "/custos/ack");
-    REQUIRE (a[0].getInt32() == 5);
-    REQUIRE (a[1].getString() == "cleared");
-
-    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124);
+    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124, 9035);
     REQUIRE (l.getAddressPattern().toString() == "/custos/loaded");
-    REQUIRE (l[0].getInt32() == 5);
-    REQUIRE (l[1].getString() == "C:/x/Diva.vst3");
+    REQUIRE (l.size() == 4);
     REQUIRE (l[2].getInt32() == 3124);
+    REQUIRE (l[3].getInt32() == 9035);   // innerTotal (full inner param count)
 }
 
-TEST_CASE ("buildParam and buildParamsDone carry N first")
+TEST_CASE ("buildParam carries N, idx, val, name, defaultVal, numSteps, label")
 {
-    const auto p = buildParam (7, 5, 0.5f, "Cutoff");
+    const auto p = buildParam (7, 5, 0.5f, "Cutoff", 0.25f, 128, "Hz");
     REQUIRE (p.getAddressPattern().toString() == "/custos/param");
-    REQUIRE (p[0].getInt32() == 7);
-    REQUIRE (p[1].getInt32() == 5);
+    REQUIRE (p.size() == 7);
+    REQUIRE (p[1].getInt32()  == 5);
     REQUIRE (p[3].getString() == "Cutoff");
+    REQUIRE (p[4].getFloat32() == 0.25f);
+    REQUIRE (p[5].getInt32()  == 128);
+    REQUIRE (p[6].getString() == "Hz");
+}
 
+TEST_CASE ("buildParamsDone carries N first")
+{
     const auto d = buildParamsDone (7, 0, 3);
     REQUIRE (d.getAddressPattern().toString() == "/custos/params/done");
     REQUIRE (d[0].getInt32() == 7);
@@ -162,4 +160,20 @@ TEST_CASE ("buildWindowRect carries N first, then rect and movable")
     REQUIRE (m[3].getInt32() == 640);
     REQUIRE (m[4].getInt32() == 480);
     REQUIRE (m[5].getInt32() == 1);
+}
+
+TEST_CASE ("buildMidiRoute carries N first, then 16 targets")
+{
+    std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = i + 1;
+    const auto m = buildMidiRoute (9, r);
+    REQUIRE (m.getAddressPattern().toString() == "/custos/midi/route");
+    REQUIRE (m.size() == 17);
+    REQUIRE (m[0].getInt32() == 9);
+    REQUIRE (m[1].getInt32() == 1);
+    REQUIRE (m[16].getInt32() == 16);
+}
+
+TEST_CASE ("protoVer is 2 for contract v2")
+{
+    REQUIRE (custos::kProtoVersion == 2);
 }

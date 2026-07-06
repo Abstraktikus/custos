@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CustosOscServer.h"
+#include "CustosProcessor.h"
 
 using namespace custos;
 
@@ -22,4 +23,55 @@ TEST_CASE ("parseCommand rejects load without a string arg and unknown addresses
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/load")).kind == Command::Unknown);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/load", 42)).kind == Command::Unknown);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/bogus")).kind == Command::Unknown);
+}
+
+TEST_CASE ("parseCommand maps /custos/midi/route with 16 ints")
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    for (int i = 1; i <= 16; ++i) m.addInt32 (i);   // identity
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::MidiRoute);
+    REQUIRE (c.route[0] == 1);
+    REQUIRE (c.route[15] == 16);
+
+    juce::OSCMessage remap ("/custos/midi/route");
+    for (int i = 0; i < 16; ++i) remap.addInt32 (i == 7 ? 1 : 0);   // input8 -> out1, rest dropped
+    REQUIRE (parseCommand (remap).route[7] == 1);
+}
+
+TEST_CASE ("parseCommand rejects /custos/midi/route without 16 ints")
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    for (int i = 0; i < 15; ++i) m.addInt32 (1);
+    REQUIRE (parseCommand (m).kind == Command::Unknown);
+}
+
+TEST_CASE ("parseCommand rejects /custos/midi/route with a non-int arg among 16")
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    for (int i = 0; i < 16; ++i) { if (i == 5) m.addFloat32 (1.0f); else m.addInt32 (1); }
+    REQUIRE (parseCommand (m).kind == Command::Unknown);
+}
+
+TEST_CASE ("parseCommand maps /custos/midi/query")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/midi/query")).kind == Command::MidiQuery);
+}
+
+TEST_CASE ("emitMidiRoute sends the current map with N first")
+{
+    custos::CustosProcessor proc;
+    proc.setIdentity (9);
+    std::vector<juce::OSCMessage> sent;
+    proc.outboundSink = [&sent] (const juce::OSCMessage& m) { sent.push_back (m); };
+
+    std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = i == 7 ? 1 : 0;
+    proc.setMidiRoute (r);
+    proc.emitMidiRoute();
+
+    REQUIRE (sent.size() == 1);
+    REQUIRE (sent[0].getAddressPattern().toString() == "/custos/midi/route");
+    REQUIRE (sent[0].size() == 17);
+    REQUIRE (sent[0][0].getInt32() == 9);
+    REQUIRE (sent[0][8].getInt32() == 1);   // input ch 8 (arg index 8) -> out 1
 }

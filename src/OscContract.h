@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <juce_osc/juce_osc.h>
 
 #ifndef CUSTOS_OSC_PORT
@@ -7,7 +8,7 @@
 
 namespace custos
 {
-constexpr int kProtoVersion = 1;
+constexpr int kProtoVersion = 2;
 
 // Deterministic 1-based mapping. N in 1..15 -> BASE+N; anything else -> 0 (invalid / unassigned).
 inline int oscPortForIdentity (int n)
@@ -16,9 +17,9 @@ inline int oscPortForIdentity (int n)
 }
 
 inline juce::OSCMessage buildHere (int n, const juce::String& mode, const juce::String& inner,
-                                   int boundCount, int port)
+                                   int boundCount, int port, int facadeCap)
 {
-    return juce::OSCMessage ("/custos/here", n, kProtoVersion, mode, inner, boundCount, port);
+    return juce::OSCMessage ("/custos/here", n, kProtoVersion, mode, inner, boundCount, port, facadeCap);
 }
 
 inline juce::OSCMessage buildAck (int n, const juce::String& text)
@@ -26,14 +27,15 @@ inline juce::OSCMessage buildAck (int n, const juce::String& text)
     return juce::OSCMessage ("/custos/ack", n, text);
 }
 
-inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount)
+inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount, int innerTotal)
 {
-    return juce::OSCMessage ("/custos/loaded", n, path, boundCount);
+    return juce::OSCMessage ("/custos/loaded", n, path, boundCount, innerTotal);
 }
 
-inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name)
+inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name,
+                                    float defaultVal, int numSteps, const juce::String& label)
 {
-    return juce::OSCMessage ("/custos/param", n, idx, val, name);
+    return juce::OSCMessage ("/custos/param", n, idx, val, name, defaultVal, numSteps, label);
 }
 
 inline juce::OSCMessage buildParamsDone (int n, int start, int count)
@@ -47,5 +49,15 @@ inline juce::OSCMessage buildParamsDone (int n, int start, int count)
 inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool movable)
 {
     return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0);
+}
+
+// MIDI route feedback (Custos -> KM). N first, then 16 targets (input i -> value; 0 = dropped).
+// Same address as the inbound verb; the 17-arg form with leading N marks it a report.
+inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)
+{
+    juce::OSCMessage m ("/custos/midi/route");
+    m.addInt32 (n);
+    for (int t : route) m.addInt32 (t);
+    return m;
 }
 }

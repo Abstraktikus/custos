@@ -92,6 +92,22 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/midi/route")
+    {
+        if (msg.size() == 16)
+        {
+            Command c; c.kind = Command::MidiRoute;
+            for (int i = 0; i < 16; ++i)
+            {
+                if (! msg[i].isInt32()) return { Command::Unknown, {} };
+                c.route[(size_t) i] = msg[i].getInt32();
+            }
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/midi/query")
+        return { Command::MidiQuery, {} };
     return { Command::Unknown, {} };
 }
 
@@ -136,7 +152,7 @@ void CustosOscServer::announceHere()
 {
     if (ackReady)
         ackSender.send (buildHere (currentN, proc.modeString(), proc.innerSynthName(),
-                                   proc.boundParamCount(), oscPortForIdentity (currentN)));
+                                   proc.boundParamCount(), oscPortForIdentity (currentN), proc.facadeSize()));
 }
 
 void CustosOscServer::ack (const juce::String& text)
@@ -188,6 +204,16 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::WindowRect:
             proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp);
+            break;
+        case Command::MidiRoute:
+        {
+            std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = cmd.route[(size_t) i];
+            proc.setMidiRoute (r);
+            proc.emitMidiRoute();   // confirm the applied map
+            break;
+        }
+        case Command::MidiQuery:
+            proc.emitMidiRoute();
             break;
         case Command::Unknown:
         default:

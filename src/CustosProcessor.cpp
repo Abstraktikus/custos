@@ -6,6 +6,7 @@
 #include "StateCodec.h"
 #include "CustosOscServer.h"
 #include "OscContract.h"
+#include "MidiRoute.h"
 #include <algorithm>
 
 namespace custos
@@ -15,6 +16,7 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     trace ("ctor: begin");
+    for (int i = 0; i < 16; ++i) midiRoute[(size_t) i].store ((std::uint8_t) (i + 1), std::memory_order_relaxed);
     facade.reserve (kFacadeParamCount);
     for (int i = 0; i < kFacadeParamCount; ++i)
     {
@@ -105,7 +107,7 @@ void CustosProcessor::clear()
 void CustosProcessor::emitLoaded()
 {
     if (outboundSink)
-        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount));
+        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
 }
 
 void CustosProcessor::dumpParams (int start, int count)
@@ -117,8 +119,9 @@ void CustosProcessor::dumpParams (int start, int count)
     int sent = 0;
     for (int i = from; i < to; ++i)
     {
-        outboundSink (buildParam (identityN, i, facade[(size_t) i]->getValue(),
-                                  facade[(size_t) i]->getName (128)));
+        auto* fp = facade[(size_t) i];
+        outboundSink (buildParam (identityN, i, fp->getValue(), fp->getName (128),
+                                  fp->getDefaultValue(), fp->getNumSteps(), fp->getLabel()));
         ++sent;
     }
     outboundSink (buildParamsDone (identityN, start, sent));
@@ -200,8 +203,31 @@ void CustosProcessor::releaseResources()
     if (inner != nullptr) inner->releaseResources();
 }
 
+void CustosProcessor::setMidiRoute (const std::array<int, 16>& route)
+{
+    for (int i = 0; i < 16; ++i)
+        midiRoute[(size_t) i].store ((std::uint8_t) juce::jlimit (0, 16, route[(size_t) i]),
+                                     std::memory_order_relaxed);
+}
+
+std::array<int, 16> CustosProcessor::getMidiRoute() const
+{
+    std::array<int, 16> out {};
+    for (int i = 0; i < 16; ++i) out[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
+    return out;
+}
+
+void CustosProcessor::emitMidiRoute()
+{
+    if (outboundSink) outboundSink (buildMidiRoute (identityN, getMidiRoute()));
+}
+
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    std::array<std::uint8_t, 16> snap {};
+    for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
+    applyMidiRoute (midi, snap, routeScratch);
+
     {
         const juce::SpinLock::ScopedTryLockType tl (swapLock);
         if (tl.isLocked() && inner != nullptr)
@@ -311,7 +337,9 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     trace ("getStateInformation");
     juce::MemoryBlock innerChunk;
     if (inner != nullptr) inner->getStateInformation (innerChunk);
-    dest = serializeState (currentSynthPath, innerChunk, identityN);
+    std::array<std::uint8_t, 16> route {};
+    for (int i = 0; i < 16; ++i) route[(size_t) i] = (std::uint8_t) getMidiRoute()[(size_t) i];
+    dest = serializeState (currentSynthPath, innerChunk, identityN, route);
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
@@ -321,6 +349,7 @@ void CustosProcessor::setStateInformation (const void* data, int size)
     if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
 
     identityN = ps.identityN;                    // tag emissions correctly before any load/clear
+    { std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = ps.route[(size_t) i]; setMidiRoute (r); }
 
     if (ps.path.isEmpty())
     {
