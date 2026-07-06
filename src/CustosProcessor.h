@@ -121,6 +121,11 @@ public:
     // Send /custos/midi/route (identity + current map) via outboundSink (no-op if null). Message thread.
     void emitMidiRoute();
 
+    // Local audio-fold mode (editor toggle, persisted state v4; NOT OSC). On = sum all inner outputs
+    // into stereo Out 1; Off = inner pairs mapped across the 5 stereo output buses.
+    void setMainLROnly (bool on) noexcept { mainLROnlyFlag.store (on); }
+    bool mainLROnly() const noexcept       { return mainLROnlyFlag.load(); }
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
@@ -151,6 +156,9 @@ private:
     bool isPrepared = false;
     std::array<std::atomic<std::uint8_t>, 16> midiRoute;   // target output per input channel; 0 = drop
     juce::MidiBuffer routeScratch;                          // reused by applyMidiRoute (no RT alloc)
+    std::atomic<bool> mainLROnlyFlag { false };             // audio-fold mode (v4)
+    juce::AudioBuffer<float> innerScratch;                  // sized to the inner's real channel count (prepare-time)
+    void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

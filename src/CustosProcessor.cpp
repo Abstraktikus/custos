@@ -7,13 +7,19 @@
 #include "CustosOscServer.h"
 #include "OscContract.h"
 #include "MidiRoute.h"
+#include "AudioBusMapper.h"
 #include <algorithm>
 
 namespace custos
 {
 CustosProcessor::CustosProcessor (bool enableOsc)
     : juce::AudioProcessor (BusesProperties()
-        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+        .withInput  ("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 1", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 2", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 3", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 4", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 5", juce::AudioChannelSet::stereo(), true))
 {
     trace ("ctor: begin");
     for (int i = 0; i < 16; ++i) midiRoute[(size_t) i].store ((std::uint8_t) (i + 1), std::memory_order_relaxed);
@@ -57,10 +63,10 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     hideSynthWindow();
 
-    // Slow work OUTSIDE the lock: prepare the incoming inner to the current play config.
+    // Slow work OUTSIDE the lock: prepare the incoming inner in ITS OWN bus layout (multi-out safe).
     if (newInner != nullptr && isPrepared)
     {
-        newInner->setPlayConfigDetails (0, getTotalNumOutputChannels(), preparedSampleRate, preparedBlockSize);
+        newInner->setRateAndBufferSizeDetails (preparedSampleRate, preparedBlockSize);
         newInner->prepareToPlay (preparedSampleRate, preparedBlockSize);
     }
 
@@ -77,6 +83,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     // Slow teardown OUTSIDE the lock.
     if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
 
+    resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     currentSynthPath = (inner != nullptr) ? path : juce::String();
     refreshEditor();
     emitLoaded();
@@ -192,9 +199,18 @@ void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
     if (inner != nullptr)
     {
-        inner->setPlayConfigDetails (0, getTotalNumOutputChannels(), sampleRate, samplesPerBlock);
+        inner->setRateAndBufferSizeDetails (sampleRate, samplesPerBlock);   // keep the inner's OWN bus layout
         inner->prepareToPlay (sampleRate, samplesPerBlock);
     }
+    resizeInnerScratch();
+}
+
+void CustosProcessor::resizeInnerScratch()
+{
+    const int ch = (inner != nullptr)
+        ? juce::jmax (inner->getTotalNumInputChannels(), inner->getTotalNumOutputChannels(), 2)
+        : 2;
+    innerScratch.setSize (ch, preparedBlockSize > 0 ? preparedBlockSize : 512, false, false, true);
 }
 
 void CustosProcessor::releaseResources()
@@ -228,20 +244,39 @@ void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
     applyMidiRoute (midi, snap, routeScratch);
 
+    const int n = buffer.getNumSamples();
     {
         const juce::SpinLock::ScopedTryLockType tl (swapLock);
         if (tl.isLocked() && inner != nullptr)
-            inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
+        {
+            if (innerScratch.getNumSamples() < n)
+                innerScratch.setSize (innerScratch.getNumChannels(), n, false, false, true);
+            innerScratch.clear();
+            // Feed Custos's input bus (ch 0/1) into the inner's first stereo pair.
+            const int fed = juce::jmin (2, innerScratch.getNumChannels(), buffer.getNumChannels());
+            for (int c = 0; c < fed; ++c) innerScratch.copyFrom (c, 0, buffer, c, 0, n);
+
+            juce::AudioBuffer<float> innerView (innerScratch.getArrayOfWritePointers(),
+                                                innerScratch.getNumChannels(), n);
+            inner->processBlock (innerView, midi);                    // inner writes into ITS full channel set
+            mapInnerToOutputs (innerView, buffer, mainLROnlyFlag.load());   // fold to Custos's 5 stereo buses
+        }
         else
+        {
             buffer.clear();                        // no synth, or a swap is in progress -> silence
+        }
     }
     buffer.applyGain (masterGain.load());          // F5 uniform trim (1.0 = unity)
 }
 
 bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainInputChannelSet().isDisabled()
-        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    const auto& in = layouts.getMainInputChannelSet();
+    if (! (in.isDisabled() || in == juce::AudioChannelSet::stereo())) return false;
+    if (layouts.outputBuses.size() != 5) return false;
+    for (int b = 0; b < layouts.outputBuses.size(); ++b)
+        if (layouts.outputBuses.getReference (b) != juce::AudioChannelSet::stereo()) return false;
+    return true;
 }
 
 juce::String CustosProcessor::innerSynthName() const
@@ -339,7 +374,7 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     if (inner != nullptr) inner->getStateInformation (innerChunk);
     std::array<std::uint8_t, 16> route {};
     for (int i = 0; i < 16; ++i) route[(size_t) i] = (std::uint8_t) getMidiRoute()[(size_t) i];
-    dest = serializeState (currentSynthPath, innerChunk, identityN, route);
+    dest = serializeState (currentSynthPath, innerChunk, identityN, route, mainLROnlyFlag.load());
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
@@ -349,6 +384,7 @@ void CustosProcessor::setStateInformation (const void* data, int size)
     if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
 
     identityN = ps.identityN;                    // tag emissions correctly before any load/clear
+    mainLROnlyFlag.store (ps.mainLROnly);        // v4 audio-fold mode
     { std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = ps.route[(size_t) i]; setMidiRoute (r); }
 
     if (ps.path.isEmpty())
