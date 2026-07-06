@@ -2,6 +2,7 @@
 #include "SynthLoader.h"
 #include "HostTrace.h"
 #include "SynthWindow.h"
+#include "TitledSynthWindow.h"
 #include "CustosEditor.h"
 #include "StateCodec.h"
 #include "CustosOscServer.h"
@@ -50,6 +51,7 @@ CustosProcessor::~CustosProcessor()
 {
     oscServer.reset();                  // stop OSC callbacks before tearing down the rest
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
+    titledWindow.reset();               // same for the titled window
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
 }
 
@@ -298,11 +300,27 @@ void CustosProcessor::showSynthWindow()
     refreshEditor();
 }
 
+void CustosProcessor::showSynthWindowTitled()
+{
+    if (inner == nullptr) return;                          // nothing to show
+    if (titledWindow != nullptr) { titledWindow->toFront (true); return; }
+    if (auto* ed = inner->createEditorAndMakeActive())     // null if the synth has no editor
+    {
+        auto w = std::make_unique<TitledSynthWindow> (inner->getName(), ed);
+        w->setAlwaysOnTop (onTopMode == OnTopInstrument);
+        w->onCloseButton = [this] { titledWindow.reset(); refreshEditor(); };   // native close tears it down
+        titledWindow = std::move (w);
+    }
+    refreshEditor();
+}
+
 void CustosProcessor::setOnTopMode (OnTopMode mode)
 {
     onTopMode = mode;
     if (synthWindow != nullptr)
         synthWindow->setAlwaysOnTop (mode == OnTopInstrument);
+    if (titledWindow != nullptr)
+        titledWindow->setAlwaysOnTop (mode == OnTopInstrument);
     if (auto* e = getActiveEditor())
         if (auto* top = e->getTopLevelComponent())
             top->setAlwaysOnTop (mode == OnTopCustos);
@@ -352,6 +370,7 @@ void CustosProcessor::emitWindowRect()
 void CustosProcessor::hideSynthWindow()
 {
     synthWindow.reset();
+    titledWindow.reset();
     refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
 }
 
@@ -361,10 +380,10 @@ void CustosProcessor::refreshEditor()
         e->refresh();
 }
 
-void CustosProcessor::toggleSynthWindow()
+void CustosProcessor::toggleSynthWindow()   // the editor "Open" button -> titled window
 {
-    if (isSynthWindowVisible()) hideSynthWindow();
-    else                        showSynthWindow();
+    if (titledWindow != nullptr) { titledWindow.reset(); refreshEditor(); }
+    else                          showSynthWindowTitled();
 }
 
 void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)

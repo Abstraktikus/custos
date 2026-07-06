@@ -14,6 +14,7 @@
 namespace custos
 {
 class SynthWindow;       // forward declaration (unique_ptr member; defined in SynthWindow.h)
+class TitledSynthWindow; // forward declaration (unique_ptr member; defined in TitledSynthWindow.h)
 class CustosOscServer;   // forward declaration (unique_ptr member; defined in CustosOscServer.h)
 
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
@@ -95,10 +96,11 @@ public:
     int innerParamTotal() const noexcept { return inner != nullptr ? (int) inner->getParameters().size() : 0; }
 
     // M2 synth-window API — message thread only.
-    void toggleSynthWindow();
-    void showSynthWindow();
+    void toggleSynthWindow();          // "Open": titled window (native title bar)
+    void showSynthWindow();            // borderless (used by "Open fixed" / OSC)
+    void showSynthWindowTitled();      // titled window with native title bar + close
     void hideSynthWindow();
-    bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr; }
+    bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr || titledWindow != nullptr; }
     bool hasInnerSynth() const noexcept { return inner != nullptr; }
     juce::String innerSynthName() const;
     juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
@@ -146,7 +148,8 @@ private:
     void applyVolumeDefault (const juce::String& path);   // set the trim from the matching favourite (unity if none)
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
-    std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
+    std::unique_ptr<SynthWindow> synthWindow;         // borderless ("Open fixed"/OSC); nullptr == hidden
+    std::unique_ptr<TitledSynthWindow> titledWindow;  // titled ("Open"); nullptr == hidden
     OnTopMode onTopMode = OnTopOff;             // keep-on-top target
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
