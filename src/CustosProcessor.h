@@ -128,6 +128,12 @@ public:
     void setMainLROnly (bool on) noexcept { mainLROnlyFlag.store (on); }
     bool mainLROnly() const noexcept       { return mainLROnlyFlag.load(); }
 
+    // Prev/Next favourite browsing over OSC (message thread). Flipping reports only the NAME + arms a
+    // 400 ms debounce; when flipping stops the debounce loads the cursor's synth (de-duped vs the loaded
+    // one). delta = +1 (next) / -1 (prev); setBrowseIndex jumps to a specific index.
+    void browseInstrument (int delta);
+    void setBrowseIndex (int i);
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
@@ -162,6 +168,13 @@ private:
     std::atomic<bool> mainLROnlyFlag { false };             // audio-fold mode (v4)
     juce::AudioBuffer<float> innerScratch;                  // sized to the inner's real channel count (prepare-time)
     void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
+
+    int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
+    struct DebounceTimer : juce::Timer { std::function<void()> cb;
+        void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
+    void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
+    void emitBrowsing (int index, const juce::String& name, bool wrapped);
+    int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

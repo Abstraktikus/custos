@@ -51,6 +51,14 @@ inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool
     return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0);
 }
 
+// Instrument-browse feedback (Custos -> KM/GP). Reports the cursor's favourite NAME while flipping (no
+// load yet). wrapped=1 on the step that wrapped past an end. The actual load is signalled later by
+// /custos/loaded (= ready/playable).
+inline juce::OSCMessage buildBrowsing (int n, int index, const juce::String& name, bool wrapped)
+{
+    return juce::OSCMessage ("/custos/browsing", n, index, name, wrapped ? 1 : 0);
+}
+
 // MIDI route feedback (Custos -> KM). N first, then 16 targets (input i -> value; 0 = dropped).
 // Same address as the inbound verb; the 17-arg form with leading N marks it a report.
 inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)

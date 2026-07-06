@@ -108,6 +108,18 @@ Command parseCommand (const juce::OSCMessage& msg)
     }
     if (addr == "/custos/midi/query")
         return { Command::MidiQuery, {} };
+    if (addr == "/custos/instrument/next")
+        return { Command::BrowseNext, {} };
+    if (addr == "/custos/instrument/prev")
+        return { Command::BrowsePrev, {} };
+    if (addr == "/custos/instrument/set")
+    {
+        if (msg.size() >= 1 && msg[0].isInt32())
+        {
+            Command c; c.kind = Command::BrowseSet; c.count = msg[0].getInt32(); return c;
+        }
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 
@@ -212,6 +224,15 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             proc.emitMidiRoute();   // confirm the applied map
             break;
         }
+        case Command::BrowseNext:
+            proc.browseInstrument (+1);
+            break;
+        case Command::BrowsePrev:
+            proc.browseInstrument (-1);
+            break;
+        case Command::BrowseSet:
+            proc.setBrowseIndex (cmd.count);
+            break;
         case Command::MidiQuery:
             proc.emitMidiRoute();
             break;

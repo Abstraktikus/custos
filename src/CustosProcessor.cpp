@@ -9,6 +9,7 @@
 #include "OscContract.h"
 #include "MidiRoute.h"
 #include "AudioBusMapper.h"
+#include "InstrumentBrowser.h"
 #include <algorithm>
 
 namespace custos
@@ -40,6 +41,8 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         const auto r = load (path);
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
+
+    browseDebounce.cb = [this] { commitBrowseLoad(); };   // fires 400 ms after flipping stops
 
     if (enableOsc)
         oscServer = std::make_unique<CustosOscServer> (*this);
@@ -86,6 +89,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
 
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
+    browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
     currentSynthPath = (inner != nullptr) ? path : juce::String();
     refreshEditor();
     emitLoaded();
@@ -168,6 +172,47 @@ void CustosProcessor::loadFavorite (int index)
 {
     if (index >= 0 && index < (int) favorites.size())
         load (favorites[(size_t) index].path);
+}
+
+int CustosProcessor::indexOfPath (const juce::String& path) const
+{
+    if (path.isEmpty()) return -1;
+    for (int i = 0; i < (int) favorites.size(); ++i)
+        if (favorites[(size_t) i].path == path) return i;
+    return -1;
+}
+
+void CustosProcessor::browseInstrument (int delta)
+{
+    const int cnt = (int) favorites.size();
+    if (cnt == 0) return;
+    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
+    const auto step = browseStep (browseIndex, delta, cnt);
+    browseIndex = step.index;
+    emitBrowsing (browseIndex, favorites[(size_t) browseIndex].name, step.wrapped);
+    browseDebounce.startTimer (400);   // (re)arm; the synth loads only when flipping stops
+}
+
+void CustosProcessor::setBrowseIndex (int i)
+{
+    const int cnt = (int) favorites.size();
+    if (cnt == 0) return;
+    browseIndex = juce::jlimit (0, cnt - 1, i);
+    emitBrowsing (browseIndex, favorites[(size_t) browseIndex].name, false);
+    browseDebounce.startTimer (400);
+}
+
+void CustosProcessor::commitBrowseLoad()
+{
+    if (browseIndex < 0 || browseIndex >= (int) favorites.size()) return;
+    const juce::String path = favorites[(size_t) browseIndex].path;
+    if (path == currentSynthPath) return;   // de-dup: cursor already on the loaded synth
+    load (path);                            // synchronous; emits /custos/loaded (= ready/playable)
+}
+
+void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)
+{
+    if (outboundSink) outboundSink (buildBrowsing (identityN, index, name, wrapped));
 }
 
 void CustosProcessor::applyVolumeDefault (const juce::String& path)
