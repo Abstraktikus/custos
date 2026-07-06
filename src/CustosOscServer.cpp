@@ -71,8 +71,9 @@ Command parseCommand (const juce::OSCMessage& msg)
         if (msg.size() >= 1 && msg[0].isString())
         {
             const auto m = msg[0].getString();
-            if (m == "show") return { Command::WindowShow, {} };
-            if (m == "hide") return { Command::WindowHide, {} };
+            if (m == "show")   return { Command::WindowShow, {} };     // borderless synth window
+            if (m == "titled") return { Command::WindowTitled, {} };   // titled synth window (native title bar)
+            if (m == "hide")   return { Command::WindowHide, {} };
         }
         return { Command::Unknown, {} };
     }
@@ -210,6 +211,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::WindowShow:
             proc.showSynthWindow();
+            break;
+        case Command::WindowTitled:
+            proc.showSynthWindowTitled();
             break;
         case Command::WindowHide:
             proc.hideSynthWindow();

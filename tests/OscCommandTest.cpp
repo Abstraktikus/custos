@@ -90,3 +90,10 @@ TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
     REQUIRE (c.count == 4);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/set")).kind == Command::Unknown);   // missing arg
 }
+
+TEST_CASE ("parseCommand maps /custos/window titled")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("titled"))).kind == Command::WindowTitled);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("show"))).kind   == Command::WindowShow);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("hide"))).kind   == Command::WindowHide);
+}

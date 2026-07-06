@@ -10,7 +10,7 @@ class CustosProcessor;
 struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
-                WindowShow, WindowHide, WindowRect, MidiRoute, MidiQuery,
+                WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
                 BrowseNext, BrowsePrev, BrowseSet, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
