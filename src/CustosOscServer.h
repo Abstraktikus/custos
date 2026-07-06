@@ -10,7 +10,8 @@ class CustosProcessor;
 struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
-                WindowShow, WindowHide, WindowRect, MidiRoute, MidiQuery, Unknown } kind = Unknown;
+                WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
+                BrowseNext, BrowsePrev, BrowseSet, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
@@ -43,8 +44,10 @@ private:
 
     CustosProcessor& proc;
     juce::OSCReceiver receiver;
-    juce::OSCSender   ackSender;
+    juce::OSCSender   ackSender;   // KM hub :8000 (all feedback)
+    juce::OSCSender   gpSender;    // GP OSC-in :54344 (mirrors /custos/browsing + /custos/loaded only)
     bool ackReady = false;
+    bool gpReady  = false;
     int  currentN = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosOscServer)

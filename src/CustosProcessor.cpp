@@ -2,18 +2,26 @@
 #include "SynthLoader.h"
 #include "HostTrace.h"
 #include "SynthWindow.h"
+#include "TitledSynthWindow.h"
 #include "CustosEditor.h"
 #include "StateCodec.h"
 #include "CustosOscServer.h"
 #include "OscContract.h"
 #include "MidiRoute.h"
+#include "AudioBusMapper.h"
+#include "InstrumentBrowser.h"
 #include <algorithm>
 
 namespace custos
 {
 CustosProcessor::CustosProcessor (bool enableOsc)
     : juce::AudioProcessor (BusesProperties()
-        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+        .withInput  ("Input", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 1", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 2", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 3", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 4", juce::AudioChannelSet::stereo(), true)
+        .withOutput ("Out 5", juce::AudioChannelSet::stereo(), true))
 {
     trace ("ctor: begin");
     for (int i = 0; i < 16; ++i) midiRoute[(size_t) i].store ((std::uint8_t) (i + 1), std::memory_order_relaxed);
@@ -34,6 +42,8 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
 
+    browseDebounce.cb = [this] { commitBrowseLoad(); };   // fires 400 ms after flipping stops
+
     if (enableOsc)
         oscServer = std::make_unique<CustosOscServer> (*this);
 
@@ -44,6 +54,7 @@ CustosProcessor::~CustosProcessor()
 {
     oscServer.reset();                  // stop OSC callbacks before tearing down the rest
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
+    titledWindow.reset();               // same for the titled window
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
 }
 
@@ -55,12 +66,14 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
+    const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
+    const bool       reopenMovable = windowBorderlessMovable;
     hideSynthWindow();
 
-    // Slow work OUTSIDE the lock: prepare the incoming inner to the current play config.
+    // Slow work OUTSIDE the lock: prepare the incoming inner in ITS OWN bus layout (multi-out safe).
     if (newInner != nullptr && isPrepared)
     {
-        newInner->setPlayConfigDetails (0, getTotalNumOutputChannels(), preparedSampleRate, preparedBlockSize);
+        newInner->setRateAndBufferSizeDetails (preparedSampleRate, preparedBlockSize);
         newInner->prepareToPlay (preparedSampleRate, preparedBlockSize);
     }
 
@@ -77,7 +90,15 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     // Slow teardown OUTSIDE the lock.
     if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
 
+    resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
+    browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
     currentSynthPath = (inner != nullptr) ? path : juce::String();
+
+    if (inner != nullptr)   // re-show the window with the NEW synth (so browsing displays each instrument)
+    {
+        if      (reopenAs == WinTitled)     showSynthWindowTitled();
+        else if (reopenAs == WinBorderless) showSynthWindowBorderless (reopenMovable);
+    }
     refreshEditor();
     emitLoaded();
     return inner != nullptr;
@@ -106,6 +127,7 @@ void CustosProcessor::clear()
 
 void CustosProcessor::emitLoaded()
 {
+    traceN ("loaded \"" + currentSynthPath + "\" count=" + juce::String (boundCount) + " total=" + juce::String (innerParamTotal()));
     if (outboundSink)
         outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
 }
@@ -161,6 +183,67 @@ void CustosProcessor::loadFavorite (int index)
         load (favorites[(size_t) index].path);
 }
 
+int CustosProcessor::indexOfPath (const juce::String& path) const
+{
+    if (path.isEmpty()) return -1;
+    for (int i = 0; i < (int) favorites.size(); ++i)
+        if (favorites[(size_t) i].path == path) return i;
+    return -1;
+}
+
+void CustosProcessor::traceN (const juce::String& msg) const
+{
+    trace ("N" + juce::String (identityN) + "  " + msg);
+}
+
+void CustosProcessor::browseInstrument (int delta)
+{
+    const int cnt = (int) favorites.size();
+    if (cnt == 0) return;
+    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
+    const int cap = facadeSize();
+    int idx = browseIndex;
+    bool wrapped = false;
+    for (int tries = 0; tries < cnt; ++tries)   // skip synths that don't fit this facade (e.g. 4000-param in Custos 1000)
+    {
+        const auto step = browseStep (idx, delta, cnt);
+        idx = step.index;
+        wrapped = wrapped || step.wrapped;
+        if (favouriteFits (favorites[(size_t) idx].slots, cap)) break;
+    }
+    browseIndex = idx;
+    const auto& f = favorites[(size_t) browseIndex];
+    emitBrowsing (browseIndex, f.name, wrapped);
+    traceN ("browse cursor=" + juce::String (browseIndex) + " name=\"" + f.name + "\" wrapped=" + juce::String (wrapped ? 1 : 0));
+    browseDebounce.startTimer (400);   // (re)arm; the synth loads only when flipping stops
+}
+
+void CustosProcessor::setBrowseIndex (int i)
+{
+    const int cnt = (int) favorites.size();
+    if (cnt == 0) return;
+    browseIndex = juce::jlimit (0, cnt - 1, i);
+    const auto& f = favorites[(size_t) browseIndex];
+    emitBrowsing (browseIndex, f.name, false);
+    traceN ("browse set cursor=" + juce::String (browseIndex) + " name=\"" + f.name + "\"");
+    browseDebounce.startTimer (400);
+}
+
+void CustosProcessor::commitBrowseLoad()
+{
+    if (browseIndex < 0 || browseIndex >= (int) favorites.size()) return;
+    const auto& f = favorites[(size_t) browseIndex];
+    if (! favouriteFits (f.slots, facadeSize())) return;   // never load an oversized synth
+    if (f.path == currentSynthPath) return;                // de-dup: cursor already on the loaded synth
+    traceN ("browse-load \"" + f.path + "\"");
+    load (f.path);                                         // synchronous; emits /custos/loaded (= ready/playable)
+}
+
+void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)
+{
+    if (outboundSink) outboundSink (buildBrowsing (identityN, index, name, wrapped));
+}
+
 void CustosProcessor::applyVolumeDefault (const juce::String& path)
 {
     for (const auto& f : favorites)
@@ -192,9 +275,18 @@ void CustosProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
     if (inner != nullptr)
     {
-        inner->setPlayConfigDetails (0, getTotalNumOutputChannels(), sampleRate, samplesPerBlock);
+        inner->setRateAndBufferSizeDetails (sampleRate, samplesPerBlock);   // keep the inner's OWN bus layout
         inner->prepareToPlay (sampleRate, samplesPerBlock);
     }
+    resizeInnerScratch();
+}
+
+void CustosProcessor::resizeInnerScratch()
+{
+    const int ch = (inner != nullptr)
+        ? juce::jmax (inner->getTotalNumInputChannels(), inner->getTotalNumOutputChannels(), 2)
+        : 2;
+    innerScratch.setSize (ch, preparedBlockSize > 0 ? preparedBlockSize : 512, false, false, true);
 }
 
 void CustosProcessor::releaseResources()
@@ -228,20 +320,39 @@ void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
     applyMidiRoute (midi, snap, routeScratch);
 
+    const int n = buffer.getNumSamples();
     {
         const juce::SpinLock::ScopedTryLockType tl (swapLock);
         if (tl.isLocked() && inner != nullptr)
-            inner->processBlock (buffer, midi);   // MIDI in -> stereo out, straight through
+        {
+            if (innerScratch.getNumSamples() < n)
+                innerScratch.setSize (innerScratch.getNumChannels(), n, false, false, true);
+            innerScratch.clear();
+            // Feed Custos's input bus (ch 0/1) into the inner's first stereo pair.
+            const int fed = juce::jmin (2, innerScratch.getNumChannels(), buffer.getNumChannels());
+            for (int c = 0; c < fed; ++c) innerScratch.copyFrom (c, 0, buffer, c, 0, n);
+
+            juce::AudioBuffer<float> innerView (innerScratch.getArrayOfWritePointers(),
+                                                innerScratch.getNumChannels(), n);
+            inner->processBlock (innerView, midi);                    // inner writes into ITS full channel set
+            mapInnerToOutputs (innerView, buffer, mainLROnlyFlag.load());   // fold to Custos's 5 stereo buses
+        }
         else
+        {
             buffer.clear();                        // no synth, or a swap is in progress -> silence
+        }
     }
     buffer.applyGain (masterGain.load());          // F5 uniform trim (1.0 = unity)
 }
 
 bool CustosProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainInputChannelSet().isDisabled()
-        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    const auto& in = layouts.getMainInputChannelSet();
+    if (! (in.isDisabled() || in == juce::AudioChannelSet::stereo())) return false;
+    if (layouts.outputBuses.size() != 5) return false;
+    for (int b = 0; b < layouts.outputBuses.size(); ++b)
+        if (layouts.outputBuses.getReference (b) != juce::AudioChannelSet::stereo()) return false;
+    return true;
 }
 
 juce::String CustosProcessor::innerSynthName() const
@@ -259,6 +370,29 @@ void CustosProcessor::showSynthWindow()
         synthWindow->setAlwaysOnTop (onTopMode == OnTopInstrument);
         synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
         synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
+        windowMode = WinBorderless;
+    }
+    refreshEditor();
+}
+
+void CustosProcessor::showSynthWindowBorderless (bool movable)   // "Open" with fixed=on
+{
+    showSynthWindow();                       // borderless, natural size, centred (the proven path)
+    windowBorderlessMovable = movable;
+    if (synthWindow != nullptr) synthWindow->setDraggable (movable);
+}
+
+void CustosProcessor::showSynthWindowTitled()
+{
+    if (inner == nullptr) return;                          // nothing to show
+    if (titledWindow != nullptr) { titledWindow->toFront (true); return; }
+    if (auto* ed = inner->createEditorAndMakeActive())     // null if the synth has no editor
+    {
+        auto w = std::make_unique<TitledSynthWindow> (inner->getName(), ed);
+        w->setAlwaysOnTop (onTopMode == OnTopInstrument);
+        w->onCloseButton = [this] { titledWindow.reset(); windowMode = WinNone; refreshEditor(); };   // native close
+        titledWindow = std::move (w);
+        windowMode = WinTitled;
     }
     refreshEditor();
 }
@@ -268,6 +402,8 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
     onTopMode = mode;
     if (synthWindow != nullptr)
         synthWindow->setAlwaysOnTop (mode == OnTopInstrument);
+    if (titledWindow != nullptr)
+        titledWindow->setAlwaysOnTop (mode == OnTopInstrument);
     if (auto* e = getActiveEditor())
         if (auto* top = e->getTopLevelComponent())
             top->setAlwaysOnTop (mode == OnTopCustos);
@@ -317,6 +453,8 @@ void CustosProcessor::emitWindowRect()
 void CustosProcessor::hideSynthWindow()
 {
     synthWindow.reset();
+    titledWindow.reset();
+    windowMode = WinNone;
     refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
 }
 
@@ -326,10 +464,10 @@ void CustosProcessor::refreshEditor()
         e->refresh();
 }
 
-void CustosProcessor::toggleSynthWindow()
+void CustosProcessor::toggleSynthWindow()   // Instrument-label double-click: one window at a time
 {
-    if (isSynthWindowVisible()) hideSynthWindow();
-    else                        showSynthWindow();
+    if (isSynthWindowVisible()) hideSynthWindow();   // close whichever (titled or borderless) is open
+    else                        showSynthWindowTitled();
 }
 
 void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
@@ -339,7 +477,7 @@ void CustosProcessor::getStateInformation (juce::MemoryBlock& dest)
     if (inner != nullptr) inner->getStateInformation (innerChunk);
     std::array<std::uint8_t, 16> route {};
     for (int i = 0; i < 16; ++i) route[(size_t) i] = (std::uint8_t) getMidiRoute()[(size_t) i];
-    dest = serializeState (currentSynthPath, innerChunk, identityN, route);
+    dest = serializeState (currentSynthPath, innerChunk, identityN, route, mainLROnlyFlag.load());
 }
 
 void CustosProcessor::setStateInformation (const void* data, int size)
@@ -349,6 +487,7 @@ void CustosProcessor::setStateInformation (const void* data, int size)
     if (! parseState (data, size, ps)) return;   // unknown/legacy blob -> ignore, don't crash
 
     identityN = ps.identityN;                    // tag emissions correctly before any load/clear
+    mainLROnlyFlag.store (ps.mainLROnly);        // v4 audio-fold mode
     { std::array<int, 16> r {}; for (int i = 0; i < 16; ++i) r[(size_t) i] = ps.route[(size_t) i]; setMidiRoute (r); }
 
     if (ps.path.isEmpty())

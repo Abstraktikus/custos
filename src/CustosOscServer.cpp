@@ -1,6 +1,7 @@
 #include "CustosOscServer.h"
 #include "CustosProcessor.h"
 #include "OscContract.h"
+#include "HostTrace.h"
 
 #ifndef CUSTOS_OSC_PORT
  #define CUSTOS_OSC_PORT 9100
@@ -10,6 +11,11 @@
 #endif
 #ifndef CUSTOS_ACK_PORT
  #define CUSTOS_ACK_PORT 8000
+#endif
+// GP's OSC-in port: Custos mirrors the Voice-Selector feedback (/custos/browsing + /custos/loaded) here
+// so the GP-Script can drive browsing autonomously, in addition to the KM hub on CUSTOS_ACK_PORT.
+#ifndef CUSTOS_GP_FEEDBACK_PORT
+ #define CUSTOS_GP_FEEDBACK_PORT 54344
 #endif
 
 namespace custos
@@ -54,6 +60,8 @@ Command parseCommand (const juce::OSCMessage& msg)
             c.fav.gainDb   = msg[4].getFloat32();
             if (msg.size() >= 6 && msg[5].isString())   // brand optional (back-compat)
                 c.fav.brand = msg[5].getString();
+            if (msg.size() >= 7 && msg[6].isInt32())    // slots (param count) optional 7th arg
+                c.fav.slots = msg[6].getInt32();
             return c;
         }
         return { Command::Unknown, {} };
@@ -71,8 +79,9 @@ Command parseCommand (const juce::OSCMessage& msg)
         if (msg.size() >= 1 && msg[0].isString())
         {
             const auto m = msg[0].getString();
-            if (m == "show") return { Command::WindowShow, {} };
-            if (m == "hide") return { Command::WindowHide, {} };
+            if (m == "show")   return { Command::WindowShow, {} };     // borderless synth window
+            if (m == "titled") return { Command::WindowTitled, {} };   // titled synth window (native title bar)
+            if (m == "hide")   return { Command::WindowHide, {} };
         }
         return { Command::Unknown, {} };
     }
@@ -108,13 +117,41 @@ Command parseCommand (const juce::OSCMessage& msg)
     }
     if (addr == "/custos/midi/query")
         return { Command::MidiQuery, {} };
+    if (addr == "/custos/instrument/next")
+        return { Command::BrowseNext, {} };
+    if (addr == "/custos/instrument/prev")
+        return { Command::BrowsePrev, {} };
+    if (addr == "/custos/instrument/set")
+    {
+        if (msg.size() >= 1 && msg[0].isInt32())
+        {
+            Command c; c.kind = Command::BrowseSet; c.count = msg[0].getInt32(); return c;
+        }
+        return { Command::Unknown, {} };
+    }
     return { Command::Unknown, {} };
 }
 
 CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
 {
-    ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);
-    proc.outboundSink = [this] (const juce::OSCMessage& m) { if (ackReady) ackSender.send (m); };
+    ackReady = ackSender.connect (CUSTOS_ACK_HOST, CUSTOS_ACK_PORT);          // KM hub :8000
+    gpReady  = gpSender.connect  (CUSTOS_ACK_HOST, CUSTOS_GP_FEEDBACK_PORT);  // GP OSC-in :54344
+    proc.outboundSink = [this] (const juce::OSCMessage& m)
+    {
+        const auto addr = m.getAddressPattern().toString();
+        if (ackReady)
+        {
+            ackSender.send (m);   // everything to the KM hub (unchanged)
+            trace ("N" + juce::String (currentN) + "  TX " + addr + " -> :" + juce::String (CUSTOS_ACK_PORT));
+        }
+        // Mirror ONLY the Voice-Selector feedback to GP so the GP-Script can browse autonomously
+        // (kept narrow: never mirror the /custos/param dump stream, which would flood GP's OSC-in).
+        if (gpReady && (addr == "/custos/browsing" || addr == "/custos/loaded"))
+        {
+            gpSender.send (m);
+            trace ("N" + juce::String (currentN) + "  TX " + addr + " -> :" + juce::String (CUSTOS_GP_FEEDBACK_PORT));
+        }
+    };
     proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
 }
 
@@ -124,6 +161,7 @@ CustosOscServer::~CustosOscServer()
     receiver.removeListener (this);
     receiver.disconnect();
     ackSender.disconnect();
+    gpSender.disconnect();
 }
 
 bool CustosOscServer::bindToIdentity (int n)
@@ -163,6 +201,7 @@ void CustosOscServer::ack (const juce::String& text)
 
 void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
 {
+    trace ("N" + juce::String (currentN) + "  RX " + msg.getAddressPattern().toString());
     const auto cmd = parseCommand (msg);
     switch (cmd.kind)
     {
@@ -199,6 +238,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::WindowShow:
             proc.showSynthWindow();
             break;
+        case Command::WindowTitled:
+            proc.showSynthWindowTitled();
+            break;
         case Command::WindowHide:
             proc.hideSynthWindow();
             break;
@@ -212,6 +254,15 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             proc.emitMidiRoute();   // confirm the applied map
             break;
         }
+        case Command::BrowseNext:
+            proc.browseInstrument (+1);
+            break;
+        case Command::BrowsePrev:
+            proc.browseInstrument (-1);
+            break;
+        case Command::BrowseSet:
+            proc.setBrowseIndex (cmd.count);
+            break;
         case Command::MidiQuery:
             proc.emitMidiRoute();
             break;

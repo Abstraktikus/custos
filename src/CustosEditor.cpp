@@ -1,5 +1,8 @@
 #include "CustosEditor.h"
 #include "CustosProcessor.h"
+#include "MidiRouteMatrix.h"
+#include "InstrumentBrowser.h"
+#include "HostTrace.h"
 #include <cmath>
 
 namespace custos
@@ -20,14 +23,22 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     instrLabel.setInterceptsMouseClicks (true, false);
     instrLabel.onDoubleClick = [this] { proc.toggleSynthWindow(); refresh(); };
     addAndMakeVisible (instrLabel);
-    favPicker.setTextWhenNothingSelected ("Instrument…");
+    favPicker.setTextWhenNothingSelected (juce::String());
     favPicker.onChange = [this]
     {
         const int i = favPicker.getSelectedItemIndex();
         if (i >= 0 && i < (int) filtered.size()) proc.load (filtered[(size_t) i].path);
     };
     addAndMakeVisible (favPicker);
-    openButton.onClick = [this] { proc.toggleSynthWindow(); refresh(); };
+    // Single Open/Close. "fixed" (below) chooses the window kind: unchecked = titled; checked = borderless
+    // placed at the x/y/w/h rect with movable/clamp. One window at a time; Close tears down whichever is open.
+    openButton.onClick = [this]
+    {
+        if (proc.isSynthWindowVisible())     proc.hideSynthWindow();
+        else if (fixedToggle.getToggleState()) proc.showSynthWindowBorderless (testMovable.getToggleState());
+        else                                 proc.showSynthWindowTitled();
+        refresh();
+    };
     addAndMakeVisible (openButton);
 
     // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
@@ -44,14 +55,7 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     scaleUp.onClick   = [this] { scaleWindow (1.1); };
     addAndMakeVisible (scaleDown);
     addAndMakeVisible (scaleUp);
-    openFixedButton.onClick = [this]
-    {
-        proc.setSynthWindowRect (testX.getText().getIntValue(), testY.getText().getIntValue(),
-                                 testW.getText().getIntValue(), testH.getText().getIntValue(),
-                                 testMovable.getToggleState(), testClamp.getToggleState());
-        refresh();
-    };
-    addAndMakeVisible (openFixedButton);
+    addAndMakeVisible (fixedToggle);
 
     // Master volume: label + horizontal fader + dB readout.
     volumeLabel.setText ("Volume", juce::dontSendNotification);
@@ -75,6 +79,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     onTopBox.onChange = [this] { proc.setOnTopMode ((OnTopMode) onTopBox.getSelectedItemIndex()); };
     addAndMakeVisible (onTopBox);
 
+    // Local audio-fold toggle: sum all inner outputs onto stereo Out 1 (no OSC).
+    mainLR.onClick = [this] { proc.setMainLROnly (mainLR.getToggleState()); };
+    addAndMakeVisible (mainLR);
+
     // Identity (bottom-left; hidden once set).
     idLabel.setText ("Id", juce::dontSendNotification);
     addAndMakeVisible (idLabel);
@@ -85,6 +93,27 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     addAndMakeVisible (idField);
     { const int n0 = proc.identity();
       idField.setText ((n0 >= 1 && n0 <= 15) ? juce::String (n0) : juce::String(), juce::dontSendNotification); }
+
+    // Hidden runtime host-trace toggle (revealed together with the id field).
+    traceToggle.onClick = [this] { custos::setTraceEnabled (traceToggle.getToggleState()); };
+    addAndMakeVisible (traceToggle);
+
+    // MIDI route matrix (local test convenience; drives proc.setMidiRoute). M = mute (route 0).
+    midiLabel.setText ("MIDI ch -> out", juce::dontSendNotification);
+    addAndMakeVisible (midiLabel);
+    for (int ch = 0; ch < 16; ++ch)
+    {
+        routeChanLabel[(size_t) ch].setText (juce::String (ch + 1), juce::dontSendNotification);
+        routeChanLabel[(size_t) ch].setJustificationType (juce::Justification::centred);
+        routeChanLabel[(size_t) ch].setFont (juce::Font (juce::FontOptions (11.0f)));
+        addAndMakeVisible (routeChanLabel[(size_t) ch]);
+
+        auto& b = routeBox[(size_t) ch];
+        b.addItem ("M", 1);                                        // id 1 = mute (route 0)
+        for (int out = 1; out <= 16; ++out) b.addItem (juce::String (out), out + 1);  // ids 2..17
+        b.onChange = [this] { gatherRouteFromBoxes(); };
+        addAndMakeVisible (b);
+    }
 
     refresh();
 }
@@ -123,11 +152,20 @@ void CustosEditor::refresh()
 
     rebuildInstrumentList();
 
+    // Reflect the current route map into the selectors (identity by default, or whatever KM/state set).
+    const auto routeIds = itemIdsFromRoute (proc.getMidiRoute());
+    for (int i = 0; i < 16; ++i)
+        routeBox[(size_t) i].setSelectedId (routeIds[(size_t) i], juce::dontSendNotification);
+
+    mainLR.setToggleState (proc.mainLROnly(), juce::dontSendNotification);
+
     // Identity visibility + adaptive window height.
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
-    const int targetH = showId ? 240 : 208;
+    traceToggle.setVisible (showId);   // hidden feature, revealed with the id field
+    traceToggle.setToggleState (custos::isTraceEnabled(), juce::dontSendNotification);
+    const int targetH = (showId ? 240 : 208) + 104 + 28;   // + MIDI matrix section + Main-L/R toggle row
     if (getHeight() != targetH) setSize (360, targetH);
 }
 
@@ -155,8 +193,10 @@ void CustosEditor::rebuildInstrumentList()
 {
     const juce::String brand = (brandFilter.getSelectedId() > 1) ? brandFilter.getText() : juce::String();
     filtered.clear();
+    const int cap = proc.facadeSize();
     for (const auto& f : proc.getFavorites())
-        if (brand.isEmpty() || f.brand == brand) filtered.push_back (f);
+        if ((brand.isEmpty() || f.brand == brand) && favouriteFits (f.slots, cap))   // hide synths too big for this facade
+            filtered.push_back (f);
 
     favPicker.clear (juce::dontSendNotification);   // clear() alone does not fire onChange
     int id = 1;
@@ -173,8 +213,15 @@ void CustosEditor::rebuildInstrumentList()
     {
         favPicker.setSelectedId (0, juce::dontSendNotification);
         favPicker.setTextWhenNothingSelected (proc.hasInnerSynth() ? proc.innerSynthName()
-                                                                    : juce::String ("Instrument…"));
+                                                                    : juce::String());
     }
+}
+
+void CustosEditor::gatherRouteFromBoxes()
+{
+    std::array<int, 16> ids {};
+    for (int i = 0; i < 16; ++i) ids[(size_t) i] = routeBox[(size_t) i].getSelectedId();
+    proc.setMidiRoute (routeFromItemIds (ids));
 }
 
 void CustosEditor::commitIdentity()
@@ -216,17 +263,38 @@ void CustosEditor::resized()
     onTopBox.setBounds   (onTopRow.removeFromLeft (130));
     r.removeFromTop (8);
 
+    // MIDI route matrix: header + two rows of 8 (input ch caption over an output selector).
+    auto midiHdr = r.removeFromTop (20);
+    midiLabel.setBounds (midiHdr.removeFromLeft (140));
+    r.removeFromTop (4);
+    for (int row = 0; row < 2; ++row)
+    {
+        auto capRow = r.removeFromTop (14);
+        auto boxRow = r.removeFromTop (22);
+        const int colW = capRow.getWidth() / 8;
+        for (int col = 0; col < 8; ++col)
+        {
+            const int ch = row * 8 + col;
+            routeChanLabel[(size_t) ch].setBounds (capRow.removeFromLeft (colW).reduced (1, 0));
+            routeBox[(size_t) ch].setBounds       (boxRow.removeFromLeft (colW).reduced (1, 0));
+        }
+        r.removeFromTop (4);
+    }
+
+    mainLR.setBounds (r.removeFromTop (22).removeFromLeft (160));
+    r.removeFromTop (6);
+
     // Test row 1: physical rect fields + Open fixed.
     auto rectRow = r.removeFromTop (24);
     testX.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testY.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testW.setBounds (rectRow.removeFromLeft (44)); rectRow.removeFromLeft (4);
     testH.setBounds (rectRow.removeFromLeft (44));
-    openFixedButton.setBounds (rectRow.removeFromRight (84));
     r.removeFromTop (6);
 
-    // Test row 2: movable / clamp toggles + proportional scale.
+    // Test row 2: fixed / movable / clamp toggles + proportional scale.
     auto optRow = r.removeFromTop (24);
+    fixedToggle.setBounds (optRow.removeFromLeft (58));
     testMovable.setBounds (optRow.removeFromLeft (78));
     testClamp.setBounds   (optRow.removeFromLeft (64));
     scaleUp.setBounds   (optRow.removeFromRight (30));
@@ -237,6 +305,7 @@ void CustosEditor::resized()
     auto idRow = r.removeFromTop (24);
     idLabel.setBounds (idRow.removeFromLeft (30));
     idField.setBounds (idRow.removeFromLeft (48));
+    traceToggle.setBounds (idRow.removeFromRight (80));   // hidden trace on/off, next to the id field
 }
 
 void CustosEditor::paint (juce::Graphics& g)

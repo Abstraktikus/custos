@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "FavoritesStore.h"
+#include <array>
 #include <vector>
 #include <functional>
 
@@ -48,7 +49,7 @@ private:
     juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
     juce::ToggleButton testMovable { "movable" };
     juce::ToggleButton testClamp   { "clamp" };    // constrain to monitor work area (config phase)
-    juce::TextButton   openFixedButton { "Open fixed" };
+    juce::ToggleButton fixedToggle { "fixed" };   // true = the single Open button opens the borderless/fixed window
     juce::TextButton   scaleDown { "-" }, scaleUp { "+" };   // proportional resize of the synth window
 
     juce::Label      volumeLabel;  // "Volume"
@@ -58,8 +59,16 @@ private:
     juce::Label      onTopLabel;   // "On top"
     juce::ComboBox   onTopBox;     // off / This / Instrument
 
+    juce::ToggleButton mainLR { "Main L/R only" };   // local audio-fold toggle (drives proc.setMainLROnly)
+
     juce::Label      idLabel;      // "Id"
     juce::TextEditor idField;      // N (1..15); hidden once set
+    juce::ToggleButton traceToggle { "Trace" };   // hidden (revealed with the id field): runtime host-trace on/off
+
+    juce::Label      midiLabel;                     // "MIDI ch -> out"
+    std::array<juce::Label, 16>    routeChanLabel;  // input channel captions 1..16
+    std::array<juce::ComboBox, 16> routeBox;        // per input channel: M / 1..16 (output)
+    void gatherRouteFromBoxes();                    // read the 16 boxes -> proc.setMidiRoute
 
     bool idRevealed = false;
     std::vector<Favorite> filtered;

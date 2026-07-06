@@ -39,16 +39,24 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
 | `/custos/favorites/begin` | — | start a favorites push |
-| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string` | one favorites entry (`brand` optional 6th arg — omit for none; used for the UI brand filter) |
+| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal` |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
-| `/custos/window` | `mode:string` (`show`\|`hide`) | show/hide the **inner-synth** window (borderless; never the Custos panel) |
+| `/custos/window` | `mode:string` (`show`\|`titled`\|`hide`) | open/close the **inner-synth** window (never the Custos panel). `show` = borderless at natural size; `titled` = native title bar + close; `hide` = close. Once open, the window **persists across loads** and re-shows the newly-loaded synth automatically (so browsing displays each instrument) |
 | `/custos/window/rect` | `x,y,w,h:int, movable:int [, clamp:int]` | place the synth window at a **physical-pixel** rect (DPI-mapped); `movable`=body-draggable; `clamp` (optional, default 0) constrains it to the monitor work area for config-phase reachable borders. Shows the window if hidden |
 | `/custos/midi/route` | `t1..t16:int` | set the MIDI channel-routing map: for each **input** channel 1..16 (positional, `t1`=input ch 1), `0` = drop that channel's messages, `1..16` = remap to that **output** channel. Default (unset) is identity (`t_i = i`). Applies live; Custos replies with `/custos/midi/route` echoing the applied map |
 | `/custos/midi/query` | — | → replies `/custos/midi/route` with the current map (no state change) |
+| `/custos/instrument/next` | — | advance the favourites cursor +1 (wrap). Reports only the NAME via `/custos/browsing`; **does NOT load** — the synth loads 400 ms after browsing stops |
+| `/custos/instrument/prev` | — | cursor −1 (wrap). Same name-report + deferred load |
+| `/custos/instrument/set` | `i:int` | jump the cursor to index `i` (clamped). Same name-report + deferred load |
 
 ---
 
 ## 3. Custos → KM  (send to `127.0.0.1:8000`; first arg always `N`)
+
+> **GP mirror:** `/custos/browsing` and `/custos/loaded` are additionally sent to **GP's OSC-in
+> `127.0.0.1:54344`** (not just the KM hub), so the **GP-Script can drive the Voice-Selector
+> autonomously** without KM in the loop. Every other reply below goes to `:8000` only (the param-dump
+> stream is deliberately NOT mirrored, to avoid flooding GP's OSC-in).
 
 | Address | Args | Meaning |
 |---|---|---|
@@ -59,6 +67,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/loaded` | `N, path:string, boundCount:int, innerTotal:int` | inner changed (OSC **or** UI); empty path = cleared (`boundCount`/`innerTotal` 0). Carries `boundCount` so KM can dump immediately — no `hello` round-trip. `innerTotal` is the loaded synth's **full** param count, which may exceed `boundCount`/`facadeCap` (top params unbound/uncontrollable) |
 | `/custos/window/rect` | `N, x,y,w,h:int, movable:int` | synth-window position feedback — emitted when the operator **drags** the window (on mouse-up) or when a rect is (re)applied. Physical px. Lets KM capture the operator-chosen geometry for its settings |
 | `/custos/midi/route` | `N, t1..t16:int` | MIDI route feedback — the current input→output channel map; emitted when a `/custos/midi/route` command is applied and in reply to `/custos/midi/query` |
+| `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list |
 
 **Ack strings:** `loaded <path> count=<n>` · `cleared` · `mode <m> (applies after reload)` ·
 `error <msg>`.

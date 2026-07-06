@@ -14,6 +14,7 @@
 namespace custos
 {
 class SynthWindow;       // forward declaration (unique_ptr member; defined in SynthWindow.h)
+class TitledSynthWindow; // forward declaration (unique_ptr member; defined in TitledSynthWindow.h)
 class CustosOscServer;   // forward declaration (unique_ptr member; defined in CustosOscServer.h)
 
 struct CommandResult { bool ok = false; int innerCount = 0; juce::String message; };
@@ -95,10 +96,12 @@ public:
     int innerParamTotal() const noexcept { return inner != nullptr ? (int) inner->getParameters().size() : 0; }
 
     // M2 synth-window API — message thread only.
-    void toggleSynthWindow();
-    void showSynthWindow();
+    void toggleSynthWindow();              // Instrument-label double-click: titled window
+    void showSynthWindow();                // borderless at natural size (OSC / internal)
+    void showSynthWindowBorderless (bool movable);   // "Open" with fixed=on: borderless, natural size, draggable if movable
+    void showSynthWindowTitled();          // "Open" with fixed=off: titled window, native title bar + close
     void hideSynthWindow();
-    bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr; }
+    bool isSynthWindowVisible() const noexcept { return synthWindow != nullptr || titledWindow != nullptr; }
     bool hasInnerSynth() const noexcept { return inner != nullptr; }
     juce::String innerSynthName() const;
     juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
@@ -121,6 +124,17 @@ public:
     // Send /custos/midi/route (identity + current map) via outboundSink (no-op if null). Message thread.
     void emitMidiRoute();
 
+    // Local audio-fold mode (editor toggle, persisted state v4; NOT OSC). On = sum all inner outputs
+    // into stereo Out 1; Off = inner pairs mapped across the 5 stereo output buses.
+    void setMainLROnly (bool on) noexcept { mainLROnlyFlag.store (on); }
+    bool mainLROnly() const noexcept       { return mainLROnlyFlag.load(); }
+
+    // Prev/Next favourite browsing over OSC (message thread). Flipping reports only the NAME + arms a
+    // 400 ms debounce; when flipping stops the debounce loads the cursor's synth (de-duped vs the loaded
+    // one). delta = +1 (next) / -1 (prev); setBrowseIndex jumps to a specific index.
+    void browseInstrument (int delta);
+    void setBrowseIndex (int i);
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
@@ -141,7 +155,11 @@ private:
     void applyVolumeDefault (const juce::String& path);   // set the trim from the matching favourite (unity if none)
     void emitLoaded();         // send /custos/loaded via outboundSink (no-op if null)
     void bindOsc();            // (re)bind the OSC server to BASE+identityN, if any
-    std::unique_ptr<SynthWindow> synthWindow;   // M2, message-thread only; nullptr == hidden
+    std::unique_ptr<SynthWindow> synthWindow;         // borderless (fixed/OSC); nullptr == hidden
+    std::unique_ptr<TitledSynthWindow> titledWindow;  // titled; nullptr == hidden
+    enum WindowMode { WinNone, WinTitled, WinBorderless };
+    WindowMode windowMode = WinNone;      // remembered so a load (browse/OSC) re-shows the window with the new synth
+    bool windowBorderlessMovable = false; // last movable flag for the borderless "Open"
     OnTopMode onTopMode = OnTopOff;             // keep-on-top target
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
@@ -151,6 +169,17 @@ private:
     bool isPrepared = false;
     std::array<std::atomic<std::uint8_t>, 16> midiRoute;   // target output per input channel; 0 = drop
     juce::MidiBuffer routeScratch;                          // reused by applyMidiRoute (no RT alloc)
+    std::atomic<bool> mainLROnlyFlag { false };             // audio-fold mode (v4)
+    juce::AudioBuffer<float> innerScratch;                  // sized to the inner's real channel count (prepare-time)
+    void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
+
+    int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
+    struct DebounceTimer : juce::Timer { std::function<void()> cb;
+        void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
+    void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
+    void emitBrowsing (int index, const juce::String& name, bool wrapped);
+    int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
+    void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

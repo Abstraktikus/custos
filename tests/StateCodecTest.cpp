@@ -127,3 +127,23 @@ TEST_CASE ("truncated v3 blob (partial route bytes) is rejected")
     custos::PersistedState ps;
     REQUIRE_FALSE (custos::parseState (mb.getData(), (int) mb.getSize(), ps));
 }
+
+TEST_CASE ("state v4 round-trips mainLROnly")
+{
+    std::array<std::uint8_t,16> route {}; for (int i=0;i<16;++i) route[(size_t)i]=(std::uint8_t)(i+1);
+    juce::MemoryBlock inner; inner.append ("abc", 3);
+    auto blob = custos::serializeState ("C:/x.vst3", inner, 7, route, true);
+    custos::PersistedState ps;
+    REQUIRE (custos::parseState (blob.getData(), (int) blob.getSize(), ps));
+    REQUIRE (ps.mainLROnly == true);
+    REQUIRE (ps.identityN == 7);
+}
+
+TEST_CASE ("v4 false + pre-v4 blob parse with mainLROnly defaulting to false")
+{
+    std::array<std::uint8_t,16> route {}; for (int i=0;i<16;++i) route[(size_t)i]=(std::uint8_t)(i+1);
+    auto blob = custos::serializeState ("C:/x.vst3", {}, 3, route, false);
+    custos::PersistedState ps;
+    REQUIRE (custos::parseState (blob.getData(), (int) blob.getSize(), ps));
+    REQUIRE (ps.mainLROnly == false);
+}

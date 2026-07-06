@@ -75,3 +75,25 @@ TEST_CASE ("emitMidiRoute sends the current map with N first")
     REQUIRE (sent[0][0].getInt32() == 9);
     REQUIRE (sent[0][8].getInt32() == 1);   // input ch 8 (arg index 8) -> out 1
 }
+
+TEST_CASE ("parseCommand maps /custos/instrument/next and /prev")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/next")).kind == Command::BrowseNext);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/prev")).kind == Command::BrowsePrev);
+}
+
+TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
+{
+    juce::OSCMessage msg ("/custos/instrument/set", (juce::int32) 4);
+    const auto c = parseCommand (msg);
+    REQUIRE (c.kind == Command::BrowseSet);
+    REQUIRE (c.count == 4);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/set")).kind == Command::Unknown);   // missing arg
+}
+
+TEST_CASE ("parseCommand maps /custos/window titled")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("titled"))).kind == Command::WindowTitled);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("show"))).kind   == Command::WindowShow);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("hide"))).kind   == Command::WindowHide);
+}
