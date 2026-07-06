@@ -63,6 +63,7 @@ private:
 
     juce::Label      idLabel;      // "Id"
     juce::TextEditor idField;      // N (1..15); hidden once set
+    juce::ToggleButton traceToggle { "Trace" };   // hidden (revealed with the id field): runtime host-trace on/off
 
     juce::Label      midiLabel;                     // "MIDI ch -> out"
     std::array<juce::Label, 16>    routeChanLabel;  // input channel captions 1..16

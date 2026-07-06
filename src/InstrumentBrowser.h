@@ -5,6 +5,10 @@ namespace custos
 // Pure cursor step for Prev/Next favourite browsing. `count` = number of favourites.
 // cur < 0 = unset: next -> first, prev -> last (no wrap). Otherwise cur+delta, wrapping past either
 // end (and flagging `wrapped`). Only ±1 deltas are used in practice.
+// A favourite "fits" a facade of `facadeCap` slots when its param count is unknown (0) or <= cap.
+// A Custos 1000 must not browse/load a 4000-param synth (its top params would be unbindable).
+inline bool favouriteFits (int slots, int facadeCap) { return slots <= 0 || slots <= facadeCap; }
+
 struct BrowseStep { int index; bool wrapped; };
 
 inline BrowseStep browseStep (int cur, int delta, int count)

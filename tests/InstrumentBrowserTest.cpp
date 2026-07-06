@@ -35,3 +35,13 @@ TEST_CASE ("browseStep: wrap at both ends sets wrapped")
     REQUIRE (dn.index == 4);
     REQUIRE (dn.wrapped == true);
 }
+
+TEST_CASE ("favouriteFits: unknown (0) always fits; else slots <= facadeCap")
+{
+    REQUIRE (favouriteFits (0, 1000)    == true);    // unknown -> allow
+    REQUIRE (favouriteFits (1000, 1000) == true);    // exact fit
+    REQUIRE (favouriteFits (999, 1000)  == true);
+    REQUIRE (favouriteFits (1001, 1000) == false);   // one over -> skip
+    REQUIRE (favouriteFits (4000, 1000) == false);   // 4000-param synth in a Custos 1000 -> skip
+    REQUIRE (favouriteFits (4000, 10000) == true);   // fits the big rung
+}

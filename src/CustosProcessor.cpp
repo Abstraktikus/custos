@@ -127,6 +127,7 @@ void CustosProcessor::clear()
 
 void CustosProcessor::emitLoaded()
 {
+    traceN ("loaded \"" + currentSynthPath + "\" count=" + juce::String (boundCount) + " total=" + juce::String (innerParamTotal()));
     if (outboundSink)
         outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
 }
@@ -190,14 +191,30 @@ int CustosProcessor::indexOfPath (const juce::String& path) const
     return -1;
 }
 
+void CustosProcessor::traceN (const juce::String& msg) const
+{
+    trace ("N" + juce::String (identityN) + "  " + msg);
+}
+
 void CustosProcessor::browseInstrument (int delta)
 {
     const int cnt = (int) favorites.size();
     if (cnt == 0) return;
     if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
-    const auto step = browseStep (browseIndex, delta, cnt);
-    browseIndex = step.index;
-    emitBrowsing (browseIndex, favorites[(size_t) browseIndex].name, step.wrapped);
+    const int cap = facadeSize();
+    int idx = browseIndex;
+    bool wrapped = false;
+    for (int tries = 0; tries < cnt; ++tries)   // skip synths that don't fit this facade (e.g. 4000-param in Custos 1000)
+    {
+        const auto step = browseStep (idx, delta, cnt);
+        idx = step.index;
+        wrapped = wrapped || step.wrapped;
+        if (favouriteFits (favorites[(size_t) idx].slots, cap)) break;
+    }
+    browseIndex = idx;
+    const auto& f = favorites[(size_t) browseIndex];
+    emitBrowsing (browseIndex, f.name, wrapped);
+    traceN ("browse cursor=" + juce::String (browseIndex) + " name=\"" + f.name + "\" wrapped=" + juce::String (wrapped ? 1 : 0));
     browseDebounce.startTimer (400);   // (re)arm; the synth loads only when flipping stops
 }
 
@@ -206,16 +223,20 @@ void CustosProcessor::setBrowseIndex (int i)
     const int cnt = (int) favorites.size();
     if (cnt == 0) return;
     browseIndex = juce::jlimit (0, cnt - 1, i);
-    emitBrowsing (browseIndex, favorites[(size_t) browseIndex].name, false);
+    const auto& f = favorites[(size_t) browseIndex];
+    emitBrowsing (browseIndex, f.name, false);
+    traceN ("browse set cursor=" + juce::String (browseIndex) + " name=\"" + f.name + "\"");
     browseDebounce.startTimer (400);
 }
 
 void CustosProcessor::commitBrowseLoad()
 {
     if (browseIndex < 0 || browseIndex >= (int) favorites.size()) return;
-    const juce::String path = favorites[(size_t) browseIndex].path;
-    if (path == currentSynthPath) return;   // de-dup: cursor already on the loaded synth
-    load (path);                            // synchronous; emits /custos/loaded (= ready/playable)
+    const auto& f = favorites[(size_t) browseIndex];
+    if (! favouriteFits (f.slots, facadeSize())) return;   // never load an oversized synth
+    if (f.path == currentSynthPath) return;                // de-dup: cursor already on the loaded synth
+    traceN ("browse-load \"" + f.path + "\"");
+    load (f.path);                                         // synchronous; emits /custos/loaded (= ready/playable)
 }
 
 void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)

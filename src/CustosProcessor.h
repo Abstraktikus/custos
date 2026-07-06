@@ -179,6 +179,7 @@ private:
     void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
     int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
+    void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

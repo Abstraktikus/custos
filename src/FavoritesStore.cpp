@@ -13,6 +13,7 @@ juce::String favoritesToJson (const std::vector<Favorite>& favs)
         o->setProperty ("favOrder", f.favOrder);
         o->setProperty ("gainDb", f.gainDb);
         o->setProperty ("brand", f.brand);
+        o->setProperty ("slots", f.slots);
         arr.add (juce::var (o));
     }
     return juce::JSON::toString (juce::var (arr));
@@ -31,6 +32,7 @@ std::vector<Favorite> favoritesFromJson (const juce::String& json)
             f.favOrder = (int) v.getProperty ("favOrder", 0);
             f.gainDb   = (float) (double) v.getProperty ("gainDb", 0.0);
             f.brand    = v.getProperty ("brand", "").toString();
+            f.slots    = (int) v.getProperty ("slots", 0);
             out.push_back (f);
         }
     return out;

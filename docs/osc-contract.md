@@ -39,7 +39,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
 | `/custos/favorites/begin` | — | start a favorites push |
-| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string` | one favorites entry (`brand` optional 6th arg — omit for none; used for the UI brand filter) |
+| `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal` |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
 | `/custos/window` | `mode:string` (`show`\|`titled`\|`hide`) | open/close the **inner-synth** window (never the Custos panel). `show` = borderless at natural size; `titled` = native title bar + close; `hide` = close. Once open, the window **persists across loads** and re-shows the newly-loaded synth automatically (so browsing displays each instrument) |
 | `/custos/window/rect` | `x,y,w,h:int, movable:int [, clamp:int]` | place the synth window at a **physical-pixel** rect (DPI-mapped); `movable`=body-draggable; `clamp` (optional, default 0) constrains it to the monitor work area for config-phase reachable borders. Shows the window if hidden |

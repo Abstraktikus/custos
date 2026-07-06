@@ -1,6 +1,8 @@
 #include "CustosEditor.h"
 #include "CustosProcessor.h"
 #include "MidiRouteMatrix.h"
+#include "InstrumentBrowser.h"
+#include "HostTrace.h"
 #include <cmath>
 
 namespace custos
@@ -92,6 +94,10 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     { const int n0 = proc.identity();
       idField.setText ((n0 >= 1 && n0 <= 15) ? juce::String (n0) : juce::String(), juce::dontSendNotification); }
 
+    // Hidden runtime host-trace toggle (revealed together with the id field).
+    traceToggle.onClick = [this] { custos::setTraceEnabled (traceToggle.getToggleState()); };
+    addAndMakeVisible (traceToggle);
+
     // MIDI route matrix (local test convenience; drives proc.setMidiRoute). M = mute (route 0).
     midiLabel.setText ("MIDI ch -> out", juce::dontSendNotification);
     addAndMakeVisible (midiLabel);
@@ -157,6 +163,8 @@ void CustosEditor::refresh()
     const bool showId = idVisible();
     idLabel.setVisible (showId);
     idField.setVisible (showId);
+    traceToggle.setVisible (showId);   // hidden feature, revealed with the id field
+    traceToggle.setToggleState (custos::isTraceEnabled(), juce::dontSendNotification);
     const int targetH = (showId ? 240 : 208) + 104 + 28;   // + MIDI matrix section + Main-L/R toggle row
     if (getHeight() != targetH) setSize (360, targetH);
 }
@@ -185,8 +193,10 @@ void CustosEditor::rebuildInstrumentList()
 {
     const juce::String brand = (brandFilter.getSelectedId() > 1) ? brandFilter.getText() : juce::String();
     filtered.clear();
+    const int cap = proc.facadeSize();
     for (const auto& f : proc.getFavorites())
-        if (brand.isEmpty() || f.brand == brand) filtered.push_back (f);
+        if ((brand.isEmpty() || f.brand == brand) && favouriteFits (f.slots, cap))   // hide synths too big for this facade
+            filtered.push_back (f);
 
     favPicker.clear (juce::dontSendNotification);   // clear() alone does not fire onChange
     int id = 1;
@@ -295,6 +305,7 @@ void CustosEditor::resized()
     auto idRow = r.removeFromTop (24);
     idLabel.setBounds (idRow.removeFromLeft (30));
     idField.setBounds (idRow.removeFromLeft (48));
+    traceToggle.setBounds (idRow.removeFromRight (80));   // hidden trace on/off, next to the id field
 }
 
 void CustosEditor::paint (juce::Graphics& g)
