@@ -11,7 +11,9 @@ struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
                 WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
-                BrowseNext, BrowsePrev, BrowseSet, Unknown } kind = Unknown;
+                BrowseNext, BrowsePrev, BrowseSet,
+                PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
+                PresetSet, PresetRename, PresetDelete, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
@@ -20,6 +22,8 @@ struct Command
     bool movable = false;                 // WindowRect
     bool clamp = false;                   // WindowRect: constrain to the monitor work area (config phase)
     std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
+    juce::String presetName, presetNewName, rootPath;   // preset verbs
+    int presetIndex = -1;                               // PresetSet, or PresetLoad-by-index
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.

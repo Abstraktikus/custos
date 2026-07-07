@@ -129,6 +129,29 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/preset/setroot")
+    { Command c; c.kind = Command::PresetSetRoot;
+      if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/save")
+    { Command c; c.kind = Command::PresetSave;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/list")   { Command c; c.kind = Command::PresetList; return c; }
+    if (addr == "/custos/preset/next")   { Command c; c.kind = Command::PresetNext; return c; }
+    if (addr == "/custos/preset/prev")   { Command c; c.kind = Command::PresetPrev; return c; }
+    if (addr == "/custos/preset/set")
+    { Command c; c.kind = Command::PresetSet;
+      if (msg.size() > 0 && msg[0].isInt32()) c.presetIndex = msg[0].getInt32(); return c; }
+    if (addr == "/custos/preset/load")
+    { Command c; c.kind = Command::PresetLoad;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString();
+      else if (msg.size() > 0 && msg[0].isInt32()) c.presetIndex = msg[0].getInt32(); return c; }
+    if (addr == "/custos/preset/rename")
+    { Command c; c.kind = Command::PresetRename;
+      if (msg.size() > 1 && msg[0].isString() && msg[1].isString())
+        { c.presetName = msg[0].getString(); c.presetNewName = msg[1].getString(); } return c; }
+    if (addr == "/custos/preset/delete")
+    { Command c; c.kind = Command::PresetDelete;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
     return { Command::Unknown, {} };
 }
 
