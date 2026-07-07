@@ -454,6 +454,35 @@ bool CustosProcessor::loadPresetAt (int index)
     return loadPresetByName (names[(size_t) index]);
 }
 
+void CustosProcessor::stepPreset (int delta)
+{
+    const auto names = listPresets();
+    if (names.empty()) { emitPresetError ("no presets"); return; }
+    const int n = (int) names.size();
+    presetCursor = presetCursor < 0 ? (delta > 0 ? 0 : n - 1)
+                                    : ((presetCursor + delta) % n + n) % n;   // wrap
+    emitPreset ("browsing", names[(size_t) presetCursor], presetCursor);
+    presetDebounce.cb = [this] { commitPresetLoad(); };
+    presetDebounce.startTimer (400);
+}
+
+void CustosProcessor::commitPresetLoad()
+{
+    const auto names = listPresets();
+    if (presetCursor >= 0 && presetCursor < (int) names.size())
+        loadPresetByName (names[(size_t) presetCursor]);
+}
+
+void CustosProcessor::presetNext() { stepPreset (+1); }
+void CustosProcessor::presetPrev() { stepPreset (-1); }
+
+void CustosProcessor::presetSet (int index)
+{
+    presetDebounce.stopTimer();
+    presetCursor = index;
+    loadPresetAt (index);   // immediate; emits loaded or error
+}
+
 void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& name, int idx)
 {
     if (! outboundSink) return;

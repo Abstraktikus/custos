@@ -118,6 +118,10 @@ public:
     bool loadPresetByName (const juce::String& name);          // emits loaded/error
     bool loadPresetAt (int index);                             // by sorted index; emits loaded/error
 
+    void presetNext();               // cursor +1 (wrap): preview browsing now, debounced load
+    void presetPrev();               // cursor -1 (wrap)
+    void presetSet (int index);      // absolute index: immediate load
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
@@ -197,6 +201,11 @@ private:
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
     int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
     void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
+
+    int presetCursor = -1;                  // cursor into listPresets(); -1 = unset
+    DebounceTimer presetDebounce;           // reuse the browse debounce struct type
+    void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
+    void commitPresetLoad();                // debounce fired -> load the cursor
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

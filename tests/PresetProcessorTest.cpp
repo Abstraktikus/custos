@@ -89,3 +89,50 @@ TEST_CASE ("load restores inner state and emits loaded")
     REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/error");
     root.deleteRecursively();
 }
+
+TEST_CASE ("presetSet loads immediately by index and emits loaded")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());
+    auto fake = std::make_unique<test::FakeInnerProcessor>();
+    auto* raw = fake.get();
+    proc.attachInner (std::move (fake));
+    proc.savePreset ("Apple");   // idx 0
+    proc.savePreset ("Banana");  // idx 1
+
+    raw->stateMarker = "";       // savePreset captured "fake-state" for both; markers identical, so assert via emission
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.presetSet (1);
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/loaded");
+    REQUIRE (msgs.back()[1].getString() == "Banana");
+}
+
+TEST_CASE ("presetNext/prev step the cursor with wrap and preview browsing")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Apple");   // idx 0
+    proc.savePreset ("Banana");  // idx 1
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.presetNext();   // from unset -> idx 0 preview
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/browsing");
+    REQUIRE (msgs.back()[1].getString() == "Apple");
+    proc.presetNext();   // -> idx 1
+    REQUIRE (msgs.back()[1].getString() == "Banana");
+    proc.presetNext();   // wrap -> idx 0
+    REQUIRE (msgs.back()[1].getString() == "Apple");
+    proc.presetPrev();   // wrap back -> idx 1
+    REQUIRE (msgs.back()[1].getString() == "Banana");
+}
