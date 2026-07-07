@@ -588,7 +588,20 @@ void CustosProcessor::showSynthWindowTitled()
     {
         auto w = std::make_unique<TitledSynthWindow> (inner->getName(), ed);
         w->setAlwaysOnTop (onTopMode == OnTopInstrument);
-        w->onCloseButton = [this] { titledWindow.reset(); windowMode = WinNone; refreshEditor(); };   // native close
+        // Native title-bar close. NEVER delete the window synchronously here: closeButtonPressed()
+        // runs from inside the window's own event handling, and JUCE keeps touching the window after
+        // this returns -> use-after-free. Defer the teardown to the next message loop, guarded by
+        // aliveToken so a queued callback no-ops if the processor was destroyed meanwhile.
+        w->onCloseButton = [this, weak = std::weak_ptr<bool> (aliveToken)]
+        {
+            juce::MessageManager::callAsync ([this, weak]
+            {
+                if (weak.lock() == nullptr) return;   // processor gone -> no-op
+                titledWindow.reset();
+                windowMode = WinNone;
+                refreshEditor();
+            });
+        };
         titledWindow = std::move (w);
         windowMode = WinTitled;
     }
