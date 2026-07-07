@@ -20,6 +20,7 @@ add_library(custos_core STATIC
     src/InnerBinding.cpp
     src/SynthLoader.cpp
     src/StateCodec.cpp
+    src/PresetCodec.cpp
     src/FavoritesStore.cpp
     src/HostTrace.cpp
     src/SynthWindow.cpp

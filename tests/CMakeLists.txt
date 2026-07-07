@@ -14,6 +14,7 @@ add_executable(custos_tests
     EditorTest.cpp
     SwapTest.cpp
     StateCodecTest.cpp
+    PresetCodecTest.cpp
     OscCommandTest.cpp
     OscContractTest.cpp
     AddressingTest.cpp
