@@ -56,6 +56,12 @@ CustosEditor::CustosEditor (CustosProcessor& p)
         const int i = presetPicker.getSelectedItemIndex();
         if (i >= 0) proc.loadPresetAt (i);
     };
+    addAndMakeVisible (deletePresetButton);
+    deletePresetButton.onClick = [this]
+    {
+        const auto name = presetPicker.getText();   // the selected preset's name ("" if none selected)
+        if (name.isNotEmpty()) { proc.deletePreset (name); rebuildPresetList(); }
+    };
 
     // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
     auto setupNum = [this] (juce::TextEditor& t, const juce::String& placeholder)
@@ -282,8 +288,10 @@ void CustosEditor::resized()
     presetNameField.setBounds (presetNameRow);
     r.removeFromTop (8);
 
-    // Preset row 2: preset picker (select-to-load), fills the row.
+    // Preset row 2: preset picker (select-to-load, fills) + Delete button (right).
     auto presetPickRow = r.removeFromTop (24);
+    deletePresetButton.setBounds (presetPickRow.removeFromRight (84));
+    presetPickRow.removeFromRight (8);
     presetPicker.setBounds (presetPickRow);
     r.removeFromTop (8);
 

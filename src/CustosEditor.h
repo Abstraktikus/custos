@@ -50,6 +50,7 @@ private:
     juce::ComboBox   presetPicker;                          // saved presets for the loaded synth
     juce::TextEditor presetNameField;                       // name for the next Save
     juce::TextButton savePresetButton { "Save preset" };
+    juce::TextButton deletePresetButton { "Delete" };       // delete the picker's selected preset (immediate)
 
     juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
     juce::ToggleButton testMovable { "movable" };
