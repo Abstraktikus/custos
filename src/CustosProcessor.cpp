@@ -113,6 +113,16 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
 CommandResult CustosProcessor::load (const juce::String& path)
 {
+    // Idempotent load: if this exact synth is already loaded, DON'T re-instantiate it. GP restores
+    // the persisted inner on gig-open and GP-Script re-sends the song's synths, so a reload request
+    // for the already-loaded synth is the common case — re-instantiating a heavy synth (transient
+    // 2nd instance during the swap) is wasteful and can crash. Just re-ack as loaded.
+    if (inner != nullptr && path.isNotEmpty() && path == currentSynthPath)
+    {
+        emitLoaded();
+        return { true, boundCount, "already loaded " + path };
+    }
+
     const double sr    = preparedSampleRate > 0.0 ? preparedSampleRate : 44100.0;
     const int    block = preparedBlockSize  > 0   ? preparedBlockSize  : 512;
 
