@@ -160,6 +160,54 @@ TEST_CASE ("presetSet out of range leaves cursor uncorrupted")
     root.deleteRecursively();
 }
 
+TEST_CASE ("preset names preserve German umlauts")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+
+    REQUIRE (proc.savePreset (juce::CharPointer_UTF8 ("Gr\xC3\xBCner Bass")) == 0);
+    const auto names = proc.listPresets();
+    REQUIRE (names.size() == 1);
+    REQUIRE (names[0] == juce::String (juce::CharPointer_UTF8 ("Gr\xC3\xBCner Bass")));
+    root.deleteRecursively();
+}
+
+TEST_CASE ("presetCursor re-seeds to the new synth on attachInner swap")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());
+
+    // Synth A: two presets, step the cursor to index 1 ("Banana").
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Apple");    // idx 0
+    proc.savePreset ("Banana");   // idx 1
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+    proc.presetNext();   // unset -> idx 0 ("Apple")
+    proc.presetNext();   // idx 0 -> idx 1 ("Banana")
+    REQUIRE (msgs.back()[1].getString() == "Banana");
+
+    // Swap to synth B (same fallback key "FakeInner", so folder is shared) and save a third preset.
+    // List becomes alphabetical: "Apple", "Banana", "Cherry" (idx 0, 1, 2).
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Cherry");   // idx 2
+
+    // If the swap reset presetCursor to -1, the next presetNext() previews idx 0 ("Apple").
+    // If the swap left the stale cursor (1) in place, it would advance to idx 2 ("Cherry").
+    proc.presetNext();
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/browsing");
+    REQUIRE (msgs.back()[1].getString() == "Apple");
+    root.deleteRecursively();
+}
+
 TEST_CASE ("rename and delete presets emit feedback")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

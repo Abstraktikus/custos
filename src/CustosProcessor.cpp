@@ -95,6 +95,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
+    presetCursor = -1;      // ...and the preset recall cursor re-seeds to the new synth
     currentSynthPath = (inner != nullptr) ? path : juce::String();
 
     if (inner != nullptr)   // re-show the window with the NEW synth (so browsing displays each instrument)
@@ -441,6 +442,8 @@ bool CustosProcessor::loadPresetByName (const juce::String& name)
     PresetData p;
     if (! custos::loadPreset (juce::File (presetRootPath), key, name, p))
         { emitPresetError ("preset not found"); return false; }
+    // Defensive: the lookup above is folder-scoped by `key`, so a mismatch here means a
+    // hand-edited/corrupt file, not the spec's cross-synth load path (which can't reach here).
     if (p.classId != key) { emitPresetError ("preset belongs to another synth"); return false; }
     restoreInnerState (p.innerState);
     emitPreset ("loaded", name, indexOfPreset (name));
