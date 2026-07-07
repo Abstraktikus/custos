@@ -5,7 +5,7 @@ namespace custos
 juce::File presetFolderFor (const juce::File& root, const juce::String& classId)
 {
     return root.getChildFile (juce::String::toHexString (classId.toRawUTF8(),
-                                                         classId.getNumBytesAsUTF8(), 0));
+                                                         (int) classId.getNumBytesAsUTF8(), 0));
 }
 
 juce::String sanitizePresetName (const juce::String& name)
