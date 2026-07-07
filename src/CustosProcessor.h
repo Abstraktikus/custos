@@ -10,6 +10,7 @@
 #include <functional>
 #include <atomic>
 #include <array>
+#include <optional>
 
 namespace custos
 {
@@ -208,6 +209,13 @@ private:
     DebounceTimer presetDebounce;           // reuse the browse debounce struct type
     void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
     void commitPresetLoad();                // debounce fired -> load the cursor
+
+    // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
+    // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.
+    struct PendingRecall { enum Kind { Next, Prev, SetIdx, LoadName, LoadIdx } kind; int index = 0; juce::String name; };
+    std::optional<PendingRecall> pendingRecall;
+    bool loadInFlight() const noexcept;   // true while a synth swap is pending (browse debounce armed)
+    void drainPendingRecall();            // apply the buffered recall after loadInner completes
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

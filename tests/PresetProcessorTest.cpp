@@ -233,3 +233,39 @@ TEST_CASE ("rename and delete presets emit feedback")
     REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/error");
     root.deleteRecursively();
 }
+
+TEST_CASE ("recall during an in-flight synth load is buffered then applied after the load")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (5);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Apple");    // idx 0
+    proc.savePreset ("Banana");   // idx 1
+
+    // Arm an in-flight synth load (browse debounce). browseInstrument needs a favourite to arm;
+    // startTimer sets isTimerRunning() true immediately, no message loop required.
+    proc.setFavorites ({ { "Synth2", "C:/x/Synth2.vst3", 1, 0.0f } });
+    proc.browseInstrument (+1);   // arms browseDebounce -> load in-flight
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.presetSet (1);   // arrives during the in-flight load -> buffered, must NOT execute yet
+    const bool loadedWhilePending = std::any_of (msgs.begin(), msgs.end(),
+        [] (const juce::OSCMessage& m) { return m.getAddressPattern().toString() == "/custos/preset/loaded"; });
+    REQUIRE_FALSE (loadedWhilePending);
+
+    // Complete a synth load through the choke point -> drains the buffered recall onto the new synth
+    // (same fake key -> same folder -> Apple/Banana exist).
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+
+    const auto lastLoaded = std::find_if (msgs.rbegin(), msgs.rend(),
+        [] (const juce::OSCMessage& m) { return m.getAddressPattern().toString() == "/custos/preset/loaded"; });
+    REQUIRE (lastLoaded != msgs.rend());
+    REQUIRE ((*lastLoaded)[1].getString() == "Banana");   // buffered set(1) applied post-load
+
+    root.deleteRecursively();
+}

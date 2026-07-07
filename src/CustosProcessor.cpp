@@ -68,6 +68,8 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
+    browseDebounce.stopTimer();   // this load (browse commit / direct load / test attach) clears in-flight
+
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
     const bool       reopenMovable = windowBorderlessMovable;
@@ -105,6 +107,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     }
     refreshEditor();
     emitLoaded();
+    drainPendingRecall();            // spec §5.1: apply a recall buffered while this load was in-flight
     return inner != nullptr;
 }
 
@@ -437,6 +440,7 @@ int CustosProcessor::savePreset (const juce::String& name)
 
 bool CustosProcessor::loadPresetByName (const juce::String& name)
 {
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::LoadName, 0, name }; return false; }
     const auto key = innerSynthKey();
     if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
     PresetData p;
@@ -452,6 +456,7 @@ bool CustosProcessor::loadPresetByName (const juce::String& name)
 
 bool CustosProcessor::loadPresetAt (int index)
 {
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::LoadIdx, index, {} }; return false; }
     const auto names = listPresets();
     if (index < 0 || index >= (int) names.size()) { emitPresetError ("index out of range"); return false; }
     return loadPresetByName (names[(size_t) index]);
@@ -496,14 +501,42 @@ void CustosProcessor::commitPresetLoad()
         loadPresetByName (names[(size_t) presetCursor]);
 }
 
-void CustosProcessor::presetNext() { stepPreset (+1); }
-void CustosProcessor::presetPrev() { stepPreset (-1); }
+void CustosProcessor::presetNext()
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::Next, 0, {} }; return; }
+    stepPreset (+1);
+}
+
+void CustosProcessor::presetPrev()
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::Prev, 0, {} }; return; }
+    stepPreset (-1);
+}
 
 void CustosProcessor::presetSet (int index)
 {
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::SetIdx, index, {} }; return; }
     presetDebounce.stopTimer();
     if (loadPresetAt (index))   // loads + emits; false (+ error) when out of range
         presetCursor = index;
+}
+
+bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }
+
+void CustosProcessor::drainPendingRecall()
+{
+    if (! pendingRecall) return;
+    if (inner == nullptr) { pendingRecall.reset(); return; }   // load failed -> drop the pending recall
+    const auto pr = *pendingRecall;
+    pendingRecall.reset();                                     // clear before replay (no re-buffer/recursion)
+    switch (pr.kind)
+    {
+        case PendingRecall::Next:     presetNext();               break;
+        case PendingRecall::Prev:     presetPrev();               break;
+        case PendingRecall::SetIdx:   presetSet (pr.index);       break;
+        case PendingRecall::LoadName: loadPresetByName (pr.name); break;
+        case PendingRecall::LoadIdx:  loadPresetAt (pr.index);    break;
+    }
 }
 
 void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& name, int idx)
