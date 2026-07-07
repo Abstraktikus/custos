@@ -64,3 +64,12 @@ TEST_CASE ("save with an all-illegal name is rejected, no file written")
     REQUIRE (listPresets (root, "SynthA").empty());
     root.deleteRecursively();
 }
+
+TEST_CASE ("preset root persists and falls back to default when unset")
+{
+    auto cfg = juce::File::createTempFile (".txt"); cfg.deleteFile();
+    REQUIRE (readPresetRoot (cfg) == defaultPresetRoot().getFullPathName());  // missing -> default
+    writePresetRoot (cfg, "C:/Rig/Snapshots/CustosPresets");
+    REQUIRE (readPresetRoot (cfg) == "C:/Rig/Snapshots/CustosPresets");
+    cfg.deleteFile();
+}

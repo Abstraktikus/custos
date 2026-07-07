@@ -26,4 +26,10 @@ bool loadPreset (const juce::File& root, const juce::String& classId,
 bool deletePreset (const juce::File& root, const juce::String& classId, const juce::String& name);
 bool renamePreset (const juce::File& root, const juce::String& classId,
                    const juce::String& oldName, const juce::String& newName);
+
+// Machine-global root persistence (favourites-style), %APPDATA%/Custos/presetRoot.txt.
+juce::File   presetRootConfigFile();
+juce::File   defaultPresetRoot();                    // ~/Documents/CustosPresets
+void         writePresetRoot (const juce::File& cfg, const juce::String& path);
+juce::String readPresetRoot (const juce::File& cfg); // missing/empty -> defaultPresetRoot() path
 }

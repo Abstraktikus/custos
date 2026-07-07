@@ -71,4 +71,32 @@ bool renamePreset (const juce::File& root, const juce::String& classId,
     if (! from.existsAsFile()) return false;
     return from.moveFileTo (presetFolderFor (root, classId).getChildFile (stem + ".cuspreset"));
 }
+
+juce::File presetRootConfigFile()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+              .getChildFile ("Custos").getChildFile ("presetRoot.txt");
+}
+
+juce::File defaultPresetRoot()
+{
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+              .getChildFile ("CustosPresets");
+}
+
+void writePresetRoot (const juce::File& cfg, const juce::String& path)
+{
+    cfg.getParentDirectory().createDirectory();
+    cfg.replaceWithText (path);
+}
+
+juce::String readPresetRoot (const juce::File& cfg)
+{
+    if (cfg.existsAsFile())
+    {
+        const auto p = cfg.loadFileAsString().trim();
+        if (p.isNotEmpty()) return p;
+    }
+    return defaultPresetRoot().getFullPathName();
+}
 }
