@@ -143,3 +143,11 @@ TEST_CASE ("parseCommand maps preset verbs")
     { juce::OSCMessage m ("/custos/preset/delete"); m.addString ("Gone");
       REQUIRE (parseCommand (m).kind == Command::PresetDelete); }
 }
+
+TEST_CASE ("parseCommand maps /custos/mainlr")
+{
+    { juce::OSCMessage m ("/custos/mainlr"); m.addInt32 (1);
+      const auto c = parseCommand (m); REQUIRE (c.kind == Command::MainLR); REQUIRE (c.mainLROn); }
+    { juce::OSCMessage m ("/custos/mainlr"); m.addInt32 (0);
+      const auto c = parseCommand (m); REQUIRE (c.kind == Command::MainLR); REQUIRE_FALSE (c.mainLROn); }
+}

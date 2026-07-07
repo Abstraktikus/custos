@@ -13,10 +13,11 @@ struct Command
                 WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
                 BrowseNext, BrowsePrev, BrowseSet,
                 PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
-                PresetSet, PresetRename, PresetDelete, Unknown } kind = Unknown;
+                PresetSet, PresetRename, PresetDelete, MainLR, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
+    bool mainLROn = false;      // MainLR: fold all inner outputs onto stereo Out 1
     Favorite fav;               // FavEntry
     int rx = 0, ry = 0, rw = 0, rh = 0;   // WindowRect (physical px)
     bool movable = false;                 // WindowRect

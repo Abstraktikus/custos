@@ -38,6 +38,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/params` | `start:int, count:int` | dump bound params in `[start, start+count)` |
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
+| `/custos/mainlr` | `on:int` (`0`\|`1`) | audio-fold: `1` sums all inner outputs onto stereo Out 1; `0` maps inner pairs across the 5 stereo out buses (local editor mirror; persisted in state v4) |
 | `/custos/favorites/begin` | — | start a favorites push |
 | `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal` |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
