@@ -479,8 +479,8 @@ void CustosProcessor::presetPrev() { stepPreset (-1); }
 void CustosProcessor::presetSet (int index)
 {
     presetDebounce.stopTimer();
-    presetCursor = index;
-    loadPresetAt (index);   // immediate; emits loaded or error
+    if (loadPresetAt (index))   // loads + emits; false (+ error) when out of range
+        presetCursor = index;
 }
 
 void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& name, int idx)

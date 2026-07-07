@@ -136,3 +136,26 @@ TEST_CASE ("presetNext/prev step the cursor with wrap and preview browsing")
     proc.presetPrev();   // wrap back -> idx 1
     REQUIRE (msgs.back()[1].getString() == "Banana");
 }
+
+TEST_CASE ("presetSet out of range leaves cursor uncorrupted")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Apple");   // idx 0
+    proc.savePreset ("Banana");  // idx 1
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.presetSet (99);   // out of range -> rejected, cursor must NOT become 99
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/error");
+
+    proc.presetNext();     // cursor was never validly set -> previews idx 0, not 99+1
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/browsing");
+    REQUIRE (msgs.back()[1].getString() == "Apple");
+    root.deleteRecursively();
+}
