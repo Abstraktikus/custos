@@ -41,6 +41,22 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     };
     addAndMakeVisible (openButton);
 
+    // Preset name field + Save button + preset picker (select-to-load).
+    addAndMakeVisible (presetNameField);
+    presetNameField.setTextToShowWhenEmpty ("preset name", juce::Colours::grey);
+    addAndMakeVisible (savePresetButton);
+    savePresetButton.onClick = [this]
+    {
+        const auto name = presetNameField.getText().trim();
+        if (name.isNotEmpty()) { proc.savePreset (name); presetNameField.clear(); rebuildPresetList(); }
+    };
+    addAndMakeVisible (presetPicker);
+    presetPicker.onChange = [this]
+    {
+        const int i = presetPicker.getSelectedItemIndex();
+        if (i >= 0) proc.loadPresetAt (i);
+    };
+
     // Test controls (dev-only): a physical rect + movable, opened borderless via "Open fixed".
     auto setupNum = [this] (juce::TextEditor& t, const juce::String& placeholder)
     {
@@ -151,6 +167,7 @@ void CustosEditor::refresh()
     brandFilter.setSelectedId (selId, juce::dontSendNotification);
 
     rebuildInstrumentList();
+    rebuildPresetList();
 
     // Reflect the current route map into the selectors (identity by default, or whatever KM/state set).
     const auto routeIds = itemIdsFromRoute (proc.getMidiRoute());
@@ -165,7 +182,7 @@ void CustosEditor::refresh()
     idField.setVisible (showId);
     traceToggle.setVisible (showId);   // hidden feature, revealed with the id field
     traceToggle.setToggleState (custos::isTraceEnabled(), juce::dontSendNotification);
-    const int targetH = (showId ? 240 : 208) + 104 + 28;   // + MIDI matrix section + Main-L/R toggle row
+    const int targetH = (showId ? 240 : 208) + 104 + 28 + 64;   // + MIDI matrix section + Main-L/R toggle row + preset rows
     if (getHeight() != targetH) setSize (360, targetH);
 }
 
@@ -217,6 +234,13 @@ void CustosEditor::rebuildInstrumentList()
     }
 }
 
+void CustosEditor::rebuildPresetList()
+{
+    presetPicker.clear (juce::dontSendNotification);   // clear() alone does not fire onChange
+    int id = 1;
+    for (const auto& n : proc.listPresets()) presetPicker.addItem (n, id++);
+}
+
 void CustosEditor::gatherRouteFromBoxes()
 {
     std::array<int, 16> ids {};
@@ -249,6 +273,18 @@ void CustosEditor::resized()
     openButton.setBounds (instrRow.removeFromRight (60));
     instrRow.removeFromRight (8);
     favPicker.setBounds  (instrRow);
+    r.removeFromTop (8);
+
+    // Preset row 1: name field (fills) + Save button (right).
+    auto presetNameRow = r.removeFromTop (24);
+    savePresetButton.setBounds (presetNameRow.removeFromRight (84));
+    presetNameRow.removeFromRight (8);
+    presetNameField.setBounds (presetNameRow);
+    r.removeFromTop (8);
+
+    // Preset row 2: preset picker (select-to-load), fills the row.
+    auto presetPickRow = r.removeFromTop (24);
+    presetPicker.setBounds (presetPickRow);
     r.removeFromTop (8);
 
     auto volRow = r.removeFromTop (24);

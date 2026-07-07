@@ -34,6 +34,7 @@ public:
 private:
     void commitIdentity();
     void rebuildInstrumentList();
+    void rebuildPresetList();                               // fill presetPicker from proc.listPresets()
     bool idVisible() const;
     void scaleWindow (double factor);   // scale the synth window's current rect proportionally (keeps top-left)
 
@@ -45,6 +46,10 @@ private:
     ClickableLabel   instrLabel;   // "Instrument" — double-click closes the synth window (hidden feature)
     juce::ComboBox   favPicker;
     juce::TextButton openButton { "Open" };
+
+    juce::ComboBox   presetPicker;                          // saved presets for the loaded synth
+    juce::TextEditor presetNameField;                       // name for the next Save
+    juce::TextButton savePresetButton { "Save preset" };
 
     juce::TextEditor testX, testY, testW, testH;   // physical rect for the "Open fixed" test
     juce::ToggleButton testMovable { "movable" };
