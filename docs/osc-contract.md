@@ -53,10 +53,13 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 
 ## 3. Custos → KM  (send to `127.0.0.1:8000`; first arg always `N`)
 
-> **GP mirror:** `/custos/browsing` and `/custos/loaded` are additionally sent to **GP's OSC-in
-> `127.0.0.1:54344`** (not just the KM hub), so the **GP-Script can drive the Voice-Selector
-> autonomously** without KM in the loop. Every other reply below goes to `:8000` only (the param-dump
-> stream is deliberately NOT mirrored, to avoid flooding GP's OSC-in).
+> **GP mirror:** `/custos/browsing`, `/custos/loaded`, `/custos/here`, and **error-only**
+> `/custos/ack` (text starting `error`) are additionally sent to **GP's OSC-in `127.0.0.1:54344`**
+> (not just the KM hub), so the **GP-Script can drive the Voice-Selector _and_ direct instrument load
+> autonomously** without KM in the loop: `loaded` = success/ready, error-`ack` = load failure, `here`
+> = liveness/discovery. Success acks (`loaded … count=…`, `cleared`, `mode …`) are **not** mirrored
+> (success is already conveyed by `/custos/loaded`), and every other reply — notably the `/custos/param`
+> dump stream — goes to `:8000` only, to avoid flooding GP's OSC-in.
 
 | Address | Args | Meaning |
 |---|---|---|
