@@ -301,10 +301,49 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::MidiQuery:
             proc.emitMidiRoute();
             break;
+        case Command::PresetSetRoot:
+            proc.setPresetRoot (cmd.rootPath);
+            break;
+        case Command::PresetSave:
+            proc.savePreset (cmd.presetName);
+            break;
+        case Command::PresetList:
+            emitPresetList();
+            break;
+        case Command::PresetLoad:
+            if (cmd.presetIndex >= 0) proc.loadPresetAt (cmd.presetIndex);
+            else                      proc.loadPresetByName (cmd.presetName);
+            break;
+        case Command::PresetNext:
+            proc.presetNext();
+            break;
+        case Command::PresetPrev:
+            proc.presetPrev();
+            break;
+        case Command::PresetSet:
+            proc.presetSet (cmd.presetIndex);
+            break;
+        case Command::PresetRename:
+            proc.renamePreset (cmd.presetName, cmd.presetNewName);
+            break;
+        case Command::PresetDelete:
+            proc.deletePreset (cmd.presetName);
+            break;
         case Command::Unknown:
         default:
             ack ("error unknown " + msg.getAddressPattern().toString());
             break;
     }
+}
+
+void CustosOscServer::emitPresetList()
+{
+    if (! ackReady) return;
+    const auto names = proc.listPresets();
+    juce::OSCMessage m ("/custos/preset/list");
+    m.addInt32 (proc.identity());
+    m.addInt32 ((int) names.size());
+    for (const auto& n : names) m.addString (n);
+    ackSender.send (m);
 }
 }

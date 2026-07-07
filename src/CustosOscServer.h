@@ -38,6 +38,9 @@ inline bool gpMirrorsFeedback (const juce::String& addr, const juce::String& ack
 {
     if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here")
         return true;
+    if (addr == "/custos/preset/browsing" || addr == "/custos/preset/loaded"
+        || addr == "/custos/preset/error")
+        return true;
     if (addr == "/custos/ack")
         return ackText.startsWith ("error");
     return false;
@@ -60,6 +63,7 @@ private:
     void ack (const juce::String& text);
     void announceHere();
     void maybeMirrorToGp (const juce::OSCMessage&);   // GP :54344, gated by gpMirrorsFeedback
+    void emitPresetList();   // builds /custos/preset/list (identity + count + names) to the KM hub
 
     CustosProcessor& proc;
     juce::OSCReceiver receiver;
