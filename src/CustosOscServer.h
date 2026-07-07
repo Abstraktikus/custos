@@ -25,6 +25,20 @@ struct Command
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.
 Command parseCommand (const juce::OSCMessage& msg);
 
+// GP mirror policy (pure, unit-testable). The GP-Script drives the Voice-Selector AND direct
+// instrument load autonomously (no KM in the loop), so it needs the browse preview, the
+// load-ready signal, instance liveness, and load FAILURES — but not the success acks
+// (/custos/loaded already conveys success) nor the param-dump flood. Everything else stays
+// KM-hub-only. `ackText` is only consulted for /custos/ack (error → mirror).
+inline bool gpMirrorsFeedback (const juce::String& addr, const juce::String& ackText)
+{
+    if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here")
+        return true;
+    if (addr == "/custos/ack")
+        return ackText.startsWith ("error");
+    return false;
+}
+
 // Binds CUSTOS_OSC_PORT, turns /custos/load|/custos/clear into processor calls, acks to KM.
 // Owned by CustosProcessor. A failed bind is logged, not fatal.
 class CustosOscServer : private juce::OSCReceiver::Listener<juce::OSCReceiver::MessageLoopCallback>
@@ -41,11 +55,12 @@ private:
     void oscMessageReceived (const juce::OSCMessage&) override;
     void ack (const juce::String& text);
     void announceHere();
+    void maybeMirrorToGp (const juce::OSCMessage&);   // GP :54344, gated by gpMirrorsFeedback
 
     CustosProcessor& proc;
     juce::OSCReceiver receiver;
     juce::OSCSender   ackSender;   // KM hub :8000 (all feedback)
-    juce::OSCSender   gpSender;    // GP OSC-in :54344 (mirrors /custos/browsing + /custos/loaded only)
+    juce::OSCSender   gpSender;    // GP OSC-in :54344 (mirrors browsing + loaded + here + error-acks)
     bool ackReady = false;
     bool gpReady  = false;
     int  currentN = 0;

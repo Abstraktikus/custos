@@ -87,6 +87,26 @@ TEST_CASE ("parseCommand rejects /custos/volume without a float")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/volume", 3)).kind == Command::Unknown);  // int, not float
 }
 
+TEST_CASE ("gpMirrorsFeedback mirrors browse/loaded/here + error-acks, not success chatter")
+{
+    // GP-Script drives Voice-Selector + direct load autonomously -> it needs these:
+    REQUIRE (gpMirrorsFeedback ("/custos/browsing", {}));
+    REQUIRE (gpMirrorsFeedback ("/custos/loaded",   {}));
+    REQUIRE (gpMirrorsFeedback ("/custos/here",      {}));           // liveness/discovery
+    REQUIRE (gpMirrorsFeedback ("/custos/ack", "error no such file")); // load FAILURE
+
+    // ...but NOT success acks (success already conveyed by /custos/loaded):
+    REQUIRE (! gpMirrorsFeedback ("/custos/ack", "loaded C:/x.vst3 count=1234"));
+    REQUIRE (! gpMirrorsFeedback ("/custos/ack", "cleared"));
+    REQUIRE (! gpMirrorsFeedback ("/custos/ack", "mode replace (applies after reload)"));
+
+    // ...and NOT the param-dump flood or other KM-hub-only feedback:
+    REQUIRE (! gpMirrorsFeedback ("/custos/param",        {}));
+    REQUIRE (! gpMirrorsFeedback ("/custos/params/done",  {}));
+    REQUIRE (! gpMirrorsFeedback ("/custos/window/rect",  {}));
+    REQUIRE (! gpMirrorsFeedback ("/custos/midi/route",   {}));
+}
+
 TEST_CASE ("parseCommand maps the favourites push")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/favorites/begin")).kind == Command::FavBegin);

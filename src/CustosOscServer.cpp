@@ -144,13 +144,7 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
             ackSender.send (m);   // everything to the KM hub (unchanged)
             trace ("N" + juce::String (currentN) + "  TX " + addr + " -> :" + juce::String (CUSTOS_ACK_PORT));
         }
-        // Mirror ONLY the Voice-Selector feedback to GP so the GP-Script can browse autonomously
-        // (kept narrow: never mirror the /custos/param dump stream, which would flood GP's OSC-in).
-        if (gpReady && (addr == "/custos/browsing" || addr == "/custos/loaded"))
-        {
-            gpSender.send (m);
-            trace ("N" + juce::String (currentN) + "  TX " + addr + " -> :" + juce::String (CUSTOS_GP_FEEDBACK_PORT));
-        }
+        maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
     proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
 }
@@ -186,17 +180,35 @@ bool CustosOscServer::bindToIdentity (int n)
     return true;
 }
 
+void CustosOscServer::maybeMirrorToGp (const juce::OSCMessage& m)
+{
+    if (! gpReady)
+        return;
+    const auto addr = m.getAddressPattern().toString();
+    juce::String ackText;
+    if (addr == "/custos/ack" && m.size() >= 2 && m[1].isString())
+        ackText = m[1].getString();
+    if (! gpMirrorsFeedback (addr, ackText))
+        return;
+    gpSender.send (m);
+    trace ("N" + juce::String (currentN) + "  TX " + addr + " -> :" + juce::String (CUSTOS_GP_FEEDBACK_PORT));
+}
+
 void CustosOscServer::announceHere()
 {
+    const auto m = buildHere (currentN, proc.modeString(), proc.innerSynthName(),
+                              proc.boundParamCount(), oscPortForIdentity (currentN), proc.facadeSize());
     if (ackReady)
-        ackSender.send (buildHere (currentN, proc.modeString(), proc.innerSynthName(),
-                                   proc.boundParamCount(), oscPortForIdentity (currentN), proc.facadeSize()));
+        ackSender.send (m);
+    maybeMirrorToGp (m);   // GP liveness/discovery for a KM-less flow
 }
 
 void CustosOscServer::ack (const juce::String& text)
 {
+    const auto m = buildAck (currentN, text);
     if (ackReady)
-        ackSender.send (buildAck (currentN, text));
+        ackSender.send (m);
+    maybeMirrorToGp (m);   // mirrors error-acks only (success = /custos/loaded)
 }
 
 void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
