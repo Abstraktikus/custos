@@ -126,6 +126,31 @@ as the first argument**. Preview/debounce mirrors the existing favourite-browsin
 - **Preset-name sanitizing** — strip filesystem-illegal characters from the on-disk filename; the
   original display name is preserved inside the file's metadata.
 
+### 5.1 Recall ordering vs. an in-flight synth load (pending-recall buffer)
+
+When a song/voice change swaps the synth **and** a preset should be recalled, the recall must land
+on the **new** synth, after it is loaded. Two mechanisms already make most of this safe: all
+`/custos/*` commands run serially on the JUCE message thread (no interleave), and every recall
+resolves its target via `innerSynthKey()` **at execution time** (never a stale synth). Direct
+`/custos/load` and the `.gig` `setStateInformation` restore are synchronous, so a following recall
+naturally sees the new synth.
+
+The one asynchronous path is the **Voice-Selector browse**, whose actual load is debounced ~400 ms
+(`commitBrowseLoad`). A recall arriving in that window would target the *old* synth.
+
+**Decision (chosen):** Custos buffers the recall internally rather than relying on the driver to
+wait for `/custos/loaded`. Contract:
+
+- A synth load is "in-flight" while the browse debounce is armed (`browseDebounce.isTimerRunning()`).
+- A `/custos/preset/{next,prev,set,load}` arriving while a load is in-flight is **held** — exactly
+  **one** slot, last-wins — and **not** executed yet.
+- `loadInner` (the single synth-swap choke point) stops the browse debounce on entry and, after
+  `emitLoaded()`, **drains** the held recall onto the just-loaded synth (only if a synth is present;
+  a failed load drops the pending recall). A held preset that doesn't exist on the new synth yields
+  the normal `/custos/preset/error "preset not found"`.
+- Effect: a driver may fire browse/load **and** a preset recall back-to-back; Custos orders them.
+  External gating on `/custos/loaded` remains valid but is no longer required.
+
 ## 6. Build & test plan (TDD, along the existing structure)
 
 **New units (small, isolated — like the existing ones):**
