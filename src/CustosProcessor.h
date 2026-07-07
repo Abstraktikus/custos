@@ -111,6 +111,13 @@ public:
     juce::MemoryBlock captureInnerState() const;               // inner->getStateInformation ({} if none)
     bool restoreInnerState (const juce::MemoryBlock& state);   // inner->setStateInformation; false if no inner
 
+    void         setPresetRoot (const juce::String& path);     // persist (KM push-once) + remember
+    juce::String presetRoot() const { return presetRootPath; }
+    int  savePreset (const juce::String& name);                // sorted index, or -1 (no synth / empty name)
+    std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
+    bool loadPresetByName (const juce::String& name);          // emits loaded/error
+    bool loadPresetAt (int index);                             // by sorted index; emits loaded/error
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
@@ -177,6 +184,11 @@ private:
     std::atomic<bool> mainLROnlyFlag { false };             // audio-fold mode (v4)
     juce::AudioBuffer<float> innerScratch;                  // sized to the inner's real channel count (prepare-time)
     void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
+
+    juce::String presetRootPath;   // resolved preset root (from PresetStore config; KM may override)
+    void emitPreset (const juce::String& verb, const juce::String& name, int idx);  // /custos/preset/<verb> N name idx
+    void emitPresetError (const juce::String& reason);                               // /custos/preset/error N reason
+    int  indexOfPreset (const juce::String& name) const;                             // in listPresets() (-1 if none)
 
     int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
     struct DebounceTimer : juce::Timer { std::function<void()> cb;

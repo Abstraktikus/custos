@@ -10,6 +10,7 @@
 #include "MidiRoute.h"
 #include "AudioBusMapper.h"
 #include "InstrumentBrowser.h"
+#include "PresetStore.h"
 #include <algorithm>
 
 namespace custos
@@ -41,6 +42,8 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         const auto r = load (path);
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
+
+    presetRootPath = readPresetRoot (presetRootConfigFile());
 
     browseDebounce.cb = [this] { commitBrowseLoad(); };   // fires 400 ms after flipping stops
 
@@ -383,6 +386,91 @@ bool CustosProcessor::restoreInnerState (const juce::MemoryBlock& state)
     if (inner == nullptr) return false;
     inner->setStateInformation (state.getData(), (int) state.getSize());
     return true;
+}
+
+void CustosProcessor::setPresetRoot (const juce::String& path)
+{
+    presetRootPath = path;
+    writePresetRoot (presetRootConfigFile(), path);
+    if (outboundSink)
+    {
+        juce::OSCMessage m ("/custos/preset/root");
+        m.addInt32 (identityN);
+        m.addString (path);
+        outboundSink (m);
+    }
+}
+
+int CustosProcessor::indexOfPreset (const juce::String& name) const
+{
+    const auto names = listPresets();
+    for (int i = 0; i < (int) names.size(); ++i)
+        if (names[(size_t) i].equalsIgnoreCase (name)) return i;
+    return -1;
+}
+
+std::vector<juce::String> CustosProcessor::listPresets() const
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty() || presetRootPath.isEmpty()) return {};
+    return custos::listPresets (juce::File (presetRootPath), key);
+}
+
+int CustosProcessor::savePreset (const juce::String& name)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return -1; }
+    if (sanitizePresetName (name).isEmpty()) { emitPresetError ("invalid name"); return -1; }
+
+    PresetData p;
+    p.classId    = key;
+    p.synthName  = innerSynthName();
+    p.presetName = name;
+    p.innerState = captureInnerState();
+    if (! custos::savePreset (juce::File (presetRootPath), p)) { emitPresetError ("write failed"); return -1; }
+
+    const int idx = indexOfPreset (name);
+    emitPreset ("saved", name, idx);
+    return idx;
+}
+
+bool CustosProcessor::loadPresetByName (const juce::String& name)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    PresetData p;
+    if (! custos::loadPreset (juce::File (presetRootPath), key, name, p))
+        { emitPresetError ("preset not found"); return false; }
+    if (p.classId != key) { emitPresetError ("preset belongs to another synth"); return false; }
+    restoreInnerState (p.innerState);
+    emitPreset ("loaded", name, indexOfPreset (name));
+    return true;
+}
+
+bool CustosProcessor::loadPresetAt (int index)
+{
+    const auto names = listPresets();
+    if (index < 0 || index >= (int) names.size()) { emitPresetError ("index out of range"); return false; }
+    return loadPresetByName (names[(size_t) index]);
+}
+
+void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& name, int idx)
+{
+    if (! outboundSink) return;
+    juce::OSCMessage m ("/custos/preset/" + verb);
+    m.addInt32 (identityN);
+    m.addString (name);
+    m.addInt32 (idx);
+    outboundSink (m);
+}
+
+void CustosProcessor::emitPresetError (const juce::String& reason)
+{
+    if (! outboundSink) return;
+    juce::OSCMessage m ("/custos/preset/error");
+    m.addInt32 (identityN);
+    m.addString (reason);
+    outboundSink (m);
 }
 
 void CustosProcessor::showSynthWindow()
