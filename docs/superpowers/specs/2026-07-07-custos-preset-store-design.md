@@ -73,8 +73,6 @@ Magic "CUSP" + version byte
   + int32 classIdLen + UTF-8 class-id
   + int32 synthNameLen + UTF-8 synth display name
   + int32 presetNameLen + UTF-8 preset name
-  + int64 createdAtMs           (informational)
-  + int32 savedFromN            (informational; which slot saved it)
   + int32 innerLen + inner state bytes
 ```
 
