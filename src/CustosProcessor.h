@@ -117,6 +117,8 @@ public:
     std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
     bool loadPresetByName (const juce::String& name);          // emits loaded/error
     bool loadPresetAt (int index);                             // by sorted index; emits loaded/error
+    bool renamePreset (const juce::String& oldName, const juce::String& newName);  // emits renamed/error
+    bool deletePreset (const juce::String& name);                                  // emits deleted/error
 
     void presetNext();               // cursor +1 (wrap): preview browsing now, debounced load
     void presetPrev();               // cursor -1 (wrap)

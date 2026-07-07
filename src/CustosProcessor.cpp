@@ -454,6 +454,26 @@ bool CustosProcessor::loadPresetAt (int index)
     return loadPresetByName (names[(size_t) index]);
 }
 
+bool CustosProcessor::renamePreset (const juce::String& oldName, const juce::String& newName)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    if (! custos::renamePreset (juce::File (presetRootPath), key, oldName, newName))
+        { emitPresetError ("rename failed"); return false; }
+    emitPreset ("renamed", newName, indexOfPreset (newName));
+    return true;
+}
+
+bool CustosProcessor::deletePreset (const juce::String& name)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    if (! custos::deletePreset (juce::File (presetRootPath), key, name))
+        { emitPresetError ("delete failed"); return false; }
+    emitPreset ("deleted", name, -1);
+    return true;
+}
+
 void CustosProcessor::stepPreset (int delta)
 {
     const auto names = listPresets();

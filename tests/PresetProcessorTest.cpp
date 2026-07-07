@@ -159,3 +159,29 @@ TEST_CASE ("presetSet out of range leaves cursor uncorrupted")
     REQUIRE (msgs.back()[1].getString() == "Apple");
     root.deleteRecursively();
 }
+
+TEST_CASE ("rename and delete presets emit feedback")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (4);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Old");
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    REQUIRE (proc.renamePreset ("Old", "New"));
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/renamed");
+    REQUIRE (proc.listPresets() == std::vector<juce::String> { "New" });
+
+    REQUIRE (proc.deletePreset ("New"));
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/deleted");
+    REQUIRE (proc.listPresets().empty());
+
+    REQUIRE_FALSE (proc.deletePreset ("Ghost"));
+    REQUIRE (msgs.back().getAddressPattern().toString() == "/custos/preset/error");
+    root.deleteRecursively();
+}
