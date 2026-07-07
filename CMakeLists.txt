@@ -21,6 +21,7 @@ add_library(custos_core STATIC
     src/SynthLoader.cpp
     src/StateCodec.cpp
     src/PresetCodec.cpp
+    src/PresetStore.cpp
     src/FavoritesStore.cpp
     src/HostTrace.cpp
     src/SynthWindow.cpp
