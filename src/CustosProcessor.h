@@ -106,6 +106,11 @@ public:
     juce::String innerSynthName() const;
     juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
 
+    // Preset store integration (message thread).
+    juce::String innerSynthKey() const;                        // stable key of the loaded synth ("" if none)
+    juce::MemoryBlock captureInnerState() const;               // inner->getStateInformation ({} if none)
+    bool restoreInnerState (const juce::MemoryBlock& state);   // inner->setStateInformation; false if no inner
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }

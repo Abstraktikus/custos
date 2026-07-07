@@ -360,6 +360,31 @@ juce::String CustosProcessor::innerSynthName() const
     return inner != nullptr ? inner->getName() : juce::String ("(none)");
 }
 
+juce::String CustosProcessor::innerSynthKey() const
+{
+    if (inner == nullptr) return {};
+    if (auto* api = dynamic_cast<juce::AudioPluginInstance*> (inner.get()))
+    {
+        const auto id = api->getPluginDescription().createIdentifierString();
+        if (id.isNotEmpty()) return id;
+    }
+    return inner->getName();   // fallback (tests / non-plugin inners)
+}
+
+juce::MemoryBlock CustosProcessor::captureInnerState() const
+{
+    juce::MemoryBlock mb;
+    if (inner != nullptr) inner->getStateInformation (mb);
+    return mb;
+}
+
+bool CustosProcessor::restoreInnerState (const juce::MemoryBlock& state)
+{
+    if (inner == nullptr) return false;
+    inner->setStateInformation (state.getData(), (int) state.getSize());
+    return true;
+}
+
 void CustosProcessor::showSynthWindow()
 {
     if (inner == nullptr) return;                              // nothing to show
