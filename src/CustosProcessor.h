@@ -10,6 +10,7 @@
 #include <functional>
 #include <atomic>
 #include <array>
+#include <optional>
 
 namespace custos
 {
@@ -106,6 +107,24 @@ public:
     juce::String innerSynthName() const;
     juce::String currentPath() const { return currentSynthPath; }   // path of the loaded synth ("" = none)
 
+    // Preset store integration (message thread).
+    juce::String innerSynthKey() const;                        // stable key of the loaded synth ("" if none)
+    juce::MemoryBlock captureInnerState() const;               // inner->getStateInformation ({} if none)
+    bool restoreInnerState (const juce::MemoryBlock& state);   // inner->setStateInformation; false if no inner
+
+    void         setPresetRoot (const juce::String& path);     // persist (KM push-once) + remember
+    juce::String presetRoot() const { return presetRootPath; }
+    int  savePreset (const juce::String& name);                // sorted index, or -1 (no synth / empty name)
+    std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
+    bool loadPresetByName (const juce::String& name);          // emits loaded/error
+    bool loadPresetAt (int index);                             // by sorted index; emits loaded/error
+    bool renamePreset (const juce::String& oldName, const juce::String& newName);  // emits renamed/error
+    bool deletePreset (const juce::String& name);                                  // emits deleted/error
+
+    void presetNext();               // cursor +1 (wrap): preview browsing now, debounced load
+    void presetPrev();               // cursor -1 (wrap)
+    void presetSet (int index);      // absolute index: immediate load
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
@@ -173,6 +192,11 @@ private:
     juce::AudioBuffer<float> innerScratch;                  // sized to the inner's real channel count (prepare-time)
     void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
 
+    juce::String presetRootPath;   // resolved preset root (from PresetStore config; KM may override)
+    void emitPreset (const juce::String& verb, const juce::String& name, int idx);  // /custos/preset/<verb> N name idx
+    void emitPresetError (const juce::String& reason);                               // /custos/preset/error N reason
+    int  indexOfPreset (const juce::String& name) const;                             // in listPresets() (-1 if none)
+
     int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
     struct DebounceTimer : juce::Timer { std::function<void()> cb;
         void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
@@ -180,6 +204,18 @@ private:
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
     int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
     void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
+
+    int presetCursor = -1;                  // cursor into listPresets(); -1 = unset
+    DebounceTimer presetDebounce;           // reuse the browse debounce struct type
+    void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
+    void commitPresetLoad();                // debounce fired -> load the cursor
+
+    // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
+    // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.
+    struct PendingRecall { enum Kind { Next, Prev, SetIdx, LoadName, LoadIdx } kind; int index = 0; juce::String name; };
+    std::optional<PendingRecall> pendingRecall;
+    bool loadInFlight() const noexcept;   // true while a synth swap is pending (browse debounce armed)
+    void drainPendingRecall();            // apply the buffered recall after loadInner completes
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)
 };

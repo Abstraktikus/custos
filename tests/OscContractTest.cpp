@@ -197,3 +197,12 @@ TEST_CASE ("protoVer is 2 for contract v2")
 {
     REQUIRE (custos::kProtoVersion == 2);
 }
+
+TEST_CASE ("GP mirrors preset recall feedback")
+{
+    REQUIRE (gpMirrorsFeedback ("/custos/preset/browsing", {}));
+    REQUIRE (gpMirrorsFeedback ("/custos/preset/loaded", {}));
+    REQUIRE (gpMirrorsFeedback ("/custos/preset/error", {}));
+    REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/saved", {}));   // management noise stays hub-only
+    REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/list", {}));
+}

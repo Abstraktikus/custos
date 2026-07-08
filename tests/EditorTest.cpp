@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "CustosProcessor.h"
+#include "CustosEditor.h"
 #include "FakeInnerProcessor.h"
 #include <memory>
 
@@ -48,4 +49,21 @@ TEST_CASE ("CustosProcessor has an editor and creates a non-null CustosEditor")
     REQUIRE (proc.hasEditor());
     std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
     REQUIRE (ed != nullptr);
+}
+
+TEST_CASE ("editor constructs and refreshes with presets present")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+    proc.savePreset ("Warm Pad");
+
+    std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
+    REQUIRE (ed != nullptr);
+    // refresh() must not crash and must reflect the one saved preset.
+    dynamic_cast<CustosEditor*> (ed.get())->refresh();
+    REQUIRE (proc.listPresets().size() == 1);
+    root.deleteRecursively();
 }

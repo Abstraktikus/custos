@@ -10,6 +10,7 @@
 #include "MidiRoute.h"
 #include "AudioBusMapper.h"
 #include "InstrumentBrowser.h"
+#include "PresetStore.h"
 #include <algorithm>
 
 namespace custos
@@ -42,6 +43,8 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
 
+    presetRootPath = readPresetRoot (presetRootConfigFile());
+
     browseDebounce.cb = [this] { commitBrowseLoad(); };   // fires 400 ms after flipping stops
 
     if (enableOsc)
@@ -65,6 +68,8 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
+    browseDebounce.stopTimer();   // this load (browse commit / direct load / test attach) clears in-flight
+
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
     const bool       reopenMovable = windowBorderlessMovable;
@@ -92,6 +97,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
+    presetCursor = -1;      // ...and the preset recall cursor re-seeds to the new synth
     currentSynthPath = (inner != nullptr) ? path : juce::String();
 
     if (inner != nullptr)   // re-show the window with the NEW synth (so browsing displays each instrument)
@@ -101,11 +107,22 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     }
     refreshEditor();
     emitLoaded();
+    drainPendingRecall();            // spec §5.1: apply a recall buffered while this load was in-flight
     return inner != nullptr;
 }
 
 CommandResult CustosProcessor::load (const juce::String& path)
 {
+    // Idempotent load: if this exact synth is already loaded, DON'T re-instantiate it. GP restores
+    // the persisted inner on gig-open and GP-Script re-sends the song's synths, so a reload request
+    // for the already-loaded synth is the common case — re-instantiating a heavy synth (transient
+    // 2nd instance during the swap) is wasteful and can crash. Just re-ack as loaded.
+    if (inner != nullptr && path.isNotEmpty() && path == currentSynthPath)
+    {
+        emitLoaded();
+        return { true, boundCount, "already loaded " + path };
+    }
+
     const double sr    = preparedSampleRate > 0.0 ? preparedSampleRate : 44100.0;
     const int    block = preparedBlockSize  > 0   ? preparedBlockSize  : 512;
 
@@ -360,6 +377,197 @@ juce::String CustosProcessor::innerSynthName() const
     return inner != nullptr ? inner->getName() : juce::String ("(none)");
 }
 
+juce::String CustosProcessor::innerSynthKey() const
+{
+    if (inner == nullptr) return {};
+    if (auto* api = dynamic_cast<juce::AudioPluginInstance*> (inner.get()))
+    {
+        const auto id = api->getPluginDescription().createIdentifierString();
+        if (id.isNotEmpty()) return id;
+    }
+    return inner->getName();   // fallback (tests / non-plugin inners)
+}
+
+juce::MemoryBlock CustosProcessor::captureInnerState() const
+{
+    juce::MemoryBlock mb;
+    if (inner != nullptr) inner->getStateInformation (mb);
+    return mb;
+}
+
+bool CustosProcessor::restoreInnerState (const juce::MemoryBlock& state)
+{
+    if (inner == nullptr) return false;
+    inner->setStateInformation (state.getData(), (int) state.getSize());
+    return true;
+}
+
+void CustosProcessor::setPresetRoot (const juce::String& path)
+{
+    presetRootPath = path;
+    writePresetRoot (presetRootConfigFile(), path);
+    if (outboundSink)
+    {
+        juce::OSCMessage m ("/custos/preset/root");
+        m.addInt32 (identityN);
+        m.addString (path);
+        outboundSink (m);
+    }
+}
+
+int CustosProcessor::indexOfPreset (const juce::String& name) const
+{
+    const auto names = listPresets();
+    for (int i = 0; i < (int) names.size(); ++i)
+        if (names[(size_t) i].equalsIgnoreCase (name)) return i;
+    return -1;
+}
+
+std::vector<juce::String> CustosProcessor::listPresets() const
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty() || presetRootPath.isEmpty()) return {};
+    return custos::listPresets (juce::File (presetRootPath), key);
+}
+
+int CustosProcessor::savePreset (const juce::String& name)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return -1; }
+    if (sanitizePresetName (name).isEmpty()) { emitPresetError ("invalid name"); return -1; }
+
+    PresetData p;
+    p.classId    = key;
+    p.synthName  = innerSynthName();
+    p.presetName = name;
+    p.innerState = captureInnerState();
+    if (! custos::savePreset (juce::File (presetRootPath), p)) { emitPresetError ("write failed"); return -1; }
+
+    const int idx = indexOfPreset (name);
+    emitPreset ("saved", name, idx);
+    return idx;
+}
+
+bool CustosProcessor::loadPresetByName (const juce::String& name)
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::LoadName, 0, name }; return false; }
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    PresetData p;
+    if (! custos::loadPreset (juce::File (presetRootPath), key, name, p))
+        { emitPresetError ("preset not found"); return false; }
+    // Defensive: the lookup above is folder-scoped by `key`, so a mismatch here means a
+    // hand-edited/corrupt file, not the spec's cross-synth load path (which can't reach here).
+    if (p.classId != key) { emitPresetError ("preset belongs to another synth"); return false; }
+    restoreInnerState (p.innerState);
+    emitPreset ("loaded", name, indexOfPreset (name));
+    return true;
+}
+
+bool CustosProcessor::loadPresetAt (int index)
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::LoadIdx, index, {} }; return false; }
+    const auto names = listPresets();
+    if (index < 0 || index >= (int) names.size()) { emitPresetError ("index out of range"); return false; }
+    return loadPresetByName (names[(size_t) index]);
+}
+
+bool CustosProcessor::renamePreset (const juce::String& oldName, const juce::String& newName)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    if (! custos::renamePreset (juce::File (presetRootPath), key, oldName, newName))
+        { emitPresetError ("rename failed"); return false; }
+    emitPreset ("renamed", newName, indexOfPreset (newName));
+    return true;
+}
+
+bool CustosProcessor::deletePreset (const juce::String& name)
+{
+    const auto key = innerSynthKey();
+    if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
+    if (! custos::deletePreset (juce::File (presetRootPath), key, name))
+        { emitPresetError ("delete failed"); return false; }
+    emitPreset ("deleted", name, -1);
+    return true;
+}
+
+void CustosProcessor::stepPreset (int delta)
+{
+    const auto names = listPresets();
+    if (names.empty()) { emitPresetError ("no presets"); return; }
+    const int n = (int) names.size();
+    presetCursor = presetCursor < 0 ? (delta > 0 ? 0 : n - 1)
+                                    : ((presetCursor + delta) % n + n) % n;   // wrap
+    emitPreset ("browsing", names[(size_t) presetCursor], presetCursor);
+    presetDebounce.cb = [this] { commitPresetLoad(); };
+    presetDebounce.startTimer (400);
+}
+
+void CustosProcessor::commitPresetLoad()
+{
+    const auto names = listPresets();
+    if (presetCursor >= 0 && presetCursor < (int) names.size())
+        loadPresetByName (names[(size_t) presetCursor]);
+}
+
+void CustosProcessor::presetNext()
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::Next, 0, {} }; return; }
+    stepPreset (+1);
+}
+
+void CustosProcessor::presetPrev()
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::Prev, 0, {} }; return; }
+    stepPreset (-1);
+}
+
+void CustosProcessor::presetSet (int index)
+{
+    if (loadInFlight()) { pendingRecall = PendingRecall { PendingRecall::SetIdx, index, {} }; return; }
+    presetDebounce.stopTimer();
+    if (loadPresetAt (index))   // loads + emits; false (+ error) when out of range
+        presetCursor = index;
+}
+
+bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }
+
+void CustosProcessor::drainPendingRecall()
+{
+    if (! pendingRecall) return;
+    if (inner == nullptr) { pendingRecall.reset(); return; }   // load failed -> drop the pending recall
+    const auto pr = *pendingRecall;
+    pendingRecall.reset();                                     // clear before replay (no re-buffer/recursion)
+    switch (pr.kind)
+    {
+        case PendingRecall::Next:     presetNext();               break;
+        case PendingRecall::Prev:     presetPrev();               break;
+        case PendingRecall::SetIdx:   presetSet (pr.index);       break;
+        case PendingRecall::LoadName: loadPresetByName (pr.name); break;
+        case PendingRecall::LoadIdx:  loadPresetAt (pr.index);    break;
+    }
+}
+
+void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& name, int idx)
+{
+    if (! outboundSink) return;
+    juce::OSCMessage m ("/custos/preset/" + verb);
+    m.addInt32 (identityN);
+    m.addString (name);
+    m.addInt32 (idx);
+    outboundSink (m);
+}
+
+void CustosProcessor::emitPresetError (const juce::String& reason)
+{
+    if (! outboundSink) return;
+    juce::OSCMessage m ("/custos/preset/error");
+    m.addInt32 (identityN);
+    m.addString (reason);
+    outboundSink (m);
+}
+
 void CustosProcessor::showSynthWindow()
 {
     if (inner == nullptr) return;                              // nothing to show
@@ -390,7 +598,20 @@ void CustosProcessor::showSynthWindowTitled()
     {
         auto w = std::make_unique<TitledSynthWindow> (inner->getName(), ed);
         w->setAlwaysOnTop (onTopMode == OnTopInstrument);
-        w->onCloseButton = [this] { titledWindow.reset(); windowMode = WinNone; refreshEditor(); };   // native close
+        // Native title-bar close. NEVER delete the window synchronously here: closeButtonPressed()
+        // runs from inside the window's own event handling, and JUCE keeps touching the window after
+        // this returns -> use-after-free. Defer the teardown to the next message loop, guarded by
+        // aliveToken so a queued callback no-ops if the processor was destroyed meanwhile.
+        w->onCloseButton = [this, weak = std::weak_ptr<bool> (aliveToken)]
+        {
+            juce::MessageManager::callAsync ([this, weak]
+            {
+                if (weak.lock() == nullptr) return;   // processor gone -> no-op
+                titledWindow.reset();
+                windowMode = WinNone;
+                refreshEditor();
+            });
+        };
         titledWindow = std::move (w);
         windowMode = WinTitled;
     }

@@ -20,10 +20,13 @@ add_library(custos_core STATIC
     src/InnerBinding.cpp
     src/SynthLoader.cpp
     src/StateCodec.cpp
+    src/PresetCodec.cpp
+    src/PresetStore.cpp
     src/FavoritesStore.cpp
     src/HostTrace.cpp
     src/SynthWindow.cpp
     src/CustosEditor.cpp
+    src/CustosLookAndFeel.cpp
     src/CustosOscServer.cpp
     src/MidiRoute.cpp)
 target_include_directories(custos_core PUBLIC src)

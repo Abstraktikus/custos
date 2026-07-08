@@ -97,3 +97,57 @@ TEST_CASE ("parseCommand maps /custos/window titled")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("show"))).kind   == Command::WindowShow);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("hide"))).kind   == Command::WindowHide);
 }
+
+TEST_CASE ("parseCommand maps preset verbs")
+{
+    {
+        juce::OSCMessage m ("/custos/preset/save"); m.addString ("Warm Pad");
+        const auto c = parseCommand (m);
+        REQUIRE (c.kind == Command::PresetSave);
+        REQUIRE (c.presetName == "Warm Pad");
+    }
+    {
+        juce::OSCMessage m ("/custos/preset/setroot"); m.addString ("C:/Rig/CustosPresets");
+        REQUIRE (parseCommand (m).kind == Command::PresetSetRoot);
+        REQUIRE (parseCommand (m).rootPath == "C:/Rig/CustosPresets");
+    }
+    {
+        juce::OSCMessage m ("/custos/preset/set"); m.addInt32 (3);
+        const auto c = parseCommand (m);
+        REQUIRE (c.kind == Command::PresetSet);
+        REQUIRE (c.presetIndex == 3);
+    }
+    {
+        juce::OSCMessage m ("/custos/preset/load"); m.addString ("Lead");
+        const auto c = parseCommand (m);
+        REQUIRE (c.kind == Command::PresetLoad);
+        REQUIRE (c.presetName == "Lead");
+        REQUIRE (c.presetIndex == -1);
+    }
+    {
+        juce::OSCMessage m ("/custos/preset/load"); m.addInt32 (2);
+        const auto c = parseCommand (m);
+        REQUIRE (c.kind == Command::PresetLoad);
+        REQUIRE (c.presetIndex == 2);
+    }
+    {
+        juce::OSCMessage m ("/custos/preset/rename"); m.addString ("Old"); m.addString ("New");
+        const auto c = parseCommand (m);
+        REQUIRE (c.kind == Command::PresetRename);
+        REQUIRE (c.presetName == "Old");
+        REQUIRE (c.presetNewName == "New");
+    }
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/next")).kind == Command::PresetNext);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/prev")).kind == Command::PresetPrev);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/list")).kind == Command::PresetList);
+    { juce::OSCMessage m ("/custos/preset/delete"); m.addString ("Gone");
+      REQUIRE (parseCommand (m).kind == Command::PresetDelete); }
+}
+
+TEST_CASE ("parseCommand maps /custos/mainlr")
+{
+    { juce::OSCMessage m ("/custos/mainlr"); m.addInt32 (1);
+      const auto c = parseCommand (m); REQUIRE (c.kind == Command::MainLR); REQUIRE (c.mainLROn); }
+    { juce::OSCMessage m ("/custos/mainlr"); m.addInt32 (0);
+      const auto c = parseCommand (m); REQUIRE (c.kind == Command::MainLR); REQUIRE_FALSE (c.mainLROn); }
+}

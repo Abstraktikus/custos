@@ -14,6 +14,8 @@ add_executable(custos_tests
     EditorTest.cpp
     SwapTest.cpp
     StateCodecTest.cpp
+    PresetCodecTest.cpp
+    PresetStoreTest.cpp
     OscCommandTest.cpp
     OscContractTest.cpp
     AddressingTest.cpp
@@ -24,7 +26,8 @@ add_executable(custos_tests
     MidiRouteTest.cpp
     MidiRouteMatrixTest.cpp
     AudioBusMapperTest.cpp
-    InstrumentBrowserTest.cpp)
+    InstrumentBrowserTest.cpp
+    PresetProcessorTest.cpp)
 target_include_directories(custos_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(custos_tests PRIVATE custos_core Catch2::Catch2WithMain)
 

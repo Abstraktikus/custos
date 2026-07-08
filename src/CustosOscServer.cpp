@@ -45,6 +45,9 @@ Command parseCommand (const juce::OSCMessage& msg)
             return { Command::Volume, {}, 0, 0, msg[0].getFloat32() };
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/mainlr")   // fold all inner outputs onto stereo Out 1 (audio setting; sibling of volume)
+    { Command c; c.kind = Command::MainLR;
+      if (msg.size() > 0 && msg[0].isInt32()) c.mainLROn = (msg[0].getInt32() != 0); return c; }
     if (addr == "/custos/favorites/begin")
         return { Command::FavBegin, {} };
     if (addr == "/custos/favorite")
@@ -129,6 +132,29 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/preset/setroot")
+    { Command c; c.kind = Command::PresetSetRoot;
+      if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/save")
+    { Command c; c.kind = Command::PresetSave;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/list")   { Command c; c.kind = Command::PresetList; return c; }
+    if (addr == "/custos/preset/next")   { Command c; c.kind = Command::PresetNext; return c; }
+    if (addr == "/custos/preset/prev")   { Command c; c.kind = Command::PresetPrev; return c; }
+    if (addr == "/custos/preset/set")
+    { Command c; c.kind = Command::PresetSet;
+      if (msg.size() > 0 && msg[0].isInt32()) c.presetIndex = msg[0].getInt32(); return c; }
+    if (addr == "/custos/preset/load")
+    { Command c; c.kind = Command::PresetLoad;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString();
+      else if (msg.size() > 0 && msg[0].isInt32()) c.presetIndex = msg[0].getInt32(); return c; }
+    if (addr == "/custos/preset/rename")
+    { Command c; c.kind = Command::PresetRename;
+      if (msg.size() > 1 && msg[0].isString() && msg[1].isString())
+        { c.presetName = msg[0].getString(); c.presetNewName = msg[1].getString(); } return c; }
+    if (addr == "/custos/preset/delete")
+    { Command c; c.kind = Command::PresetDelete;
+      if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
     return { Command::Unknown, {} };
 }
 
@@ -237,6 +263,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::Volume:
             proc.setVolumeDb (cmd.gainDb);
             break;
+        case Command::MainLR:
+            proc.setMainLROnly (cmd.mainLROn);
+            break;
         case Command::FavBegin:
             proc.favoritesBegin();
             break;
@@ -278,10 +307,49 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::MidiQuery:
             proc.emitMidiRoute();
             break;
+        case Command::PresetSetRoot:
+            proc.setPresetRoot (cmd.rootPath);
+            break;
+        case Command::PresetSave:
+            proc.savePreset (cmd.presetName);
+            break;
+        case Command::PresetList:
+            emitPresetList();
+            break;
+        case Command::PresetLoad:
+            if (cmd.presetIndex >= 0) proc.loadPresetAt (cmd.presetIndex);
+            else                      proc.loadPresetByName (cmd.presetName);
+            break;
+        case Command::PresetNext:
+            proc.presetNext();
+            break;
+        case Command::PresetPrev:
+            proc.presetPrev();
+            break;
+        case Command::PresetSet:
+            proc.presetSet (cmd.presetIndex);
+            break;
+        case Command::PresetRename:
+            proc.renamePreset (cmd.presetName, cmd.presetNewName);
+            break;
+        case Command::PresetDelete:
+            proc.deletePreset (cmd.presetName);
+            break;
         case Command::Unknown:
         default:
             ack ("error unknown " + msg.getAddressPattern().toString());
             break;
     }
+}
+
+void CustosOscServer::emitPresetList()
+{
+    if (! ackReady) return;
+    const auto names = proc.listPresets();
+    juce::OSCMessage m ("/custos/preset/list");
+    m.addInt32 (proc.identity());
+    m.addInt32 ((int) names.size());
+    for (const auto& n : names) m.addString (n);
+    ackSender.send (m);
 }
 }

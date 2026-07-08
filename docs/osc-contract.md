@@ -5,7 +5,7 @@ Design rationale: `docs/superpowers/specs/2026-07-04-custos-external-control-con
 **`protoVer = 2`.** Anything not listed here is not part of the contract yet.
 
 Custos is a VST3 instrument that hosts an arbitrary inner synth and mirrors its parameters 1:1 onto a
-fixed facade. **All meta control (load, mode, volume, favorites, window, status, identity) is OSC/MIDI
+fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, window, status, identity) is OSC/MIDI
 — never facade parameters.**
 
 ---
@@ -38,6 +38,7 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
 | `/custos/params` | `start:int, count:int` | dump bound params in `[start, start+count)` |
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
+| `/custos/mainlr` | `on:int` (`0`\|`1`) | audio-fold: `1` sums all inner outputs onto stereo Out 1; `0` maps inner pairs across the 5 stereo out buses (local editor mirror; persisted in state v4) |
 | `/custos/favorites/begin` | — | start a favorites push |
 | `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal` |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
@@ -92,6 +93,9 @@ fixed facade. **All meta control (load, mode, volume, favorites, window, status,
   `/custos/ack` count, not by the GP `PList` harness.**
 - **Volume is a dB trim** applied inside Custos; `/custos/volume` overrides the per-synth default that
   arrived via the favorites push.
+- **Main L/R only is an audio-fold**: `/custos/mainlr 1` sums all inner outputs onto stereo Out 1; `0`
+  maps inner pairs across the 5 stereo out buses. Set-only (no feedback), persisted in Custos state v4;
+  the local editor toggle mirrors the same flag.
 - **Custos loads a synth on a manual UI pick too**, and reports it via `/custos/loaded` — KM stays in
   sync either way.
 - **Favorites are machine-level and shared.** Push once to any one reachable instance (`favorites/begin
