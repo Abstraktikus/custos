@@ -69,8 +69,11 @@ inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)
     return m;
 }
 
+// Main L/R fold feedback (Custos -> KM). N first, then the fold flag (1 = all inner outputs summed
+// onto stereo Out 1; 0 = inner pairs mapped across the 5 stereo out buses).
 inline juce::OSCMessage buildMainLR (int n, bool on)
 {
     return juce::OSCMessage ("/custos/mainlr", n, on ? 1 : 0);
 }
+
 }
