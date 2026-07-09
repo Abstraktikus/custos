@@ -76,6 +76,23 @@ TEST_CASE ("emitMidiRoute sends the current map with N first")
     REQUIRE (sent[0][8].getInt32() == 1);   // input ch 8 (arg index 8) -> out 1
 }
 
+TEST_CASE ("emitMainLR sends the current fold flag with N first")
+{
+    custos::CustosProcessor proc;
+    proc.setIdentity (9);
+    std::vector<juce::OSCMessage> sent;
+    proc.outboundSink = [&sent] (const juce::OSCMessage& m) { sent.push_back (m); };
+
+    proc.setMainLROnly (true);
+    proc.emitMainLR();
+
+    REQUIRE (sent.size() == 1);
+    REQUIRE (sent[0].getAddressPattern().toString() == "/custos/mainlr");
+    REQUIRE (sent[0].size() == 2);
+    REQUIRE (sent[0][0].getInt32() == 9);
+    REQUIRE (sent[0][1].getInt32() == 1);
+}
+
 TEST_CASE ("parseCommand maps /custos/instrument/next and /prev")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/next")).kind == Command::BrowseNext);
