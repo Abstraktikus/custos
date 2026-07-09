@@ -168,3 +168,8 @@ TEST_CASE ("parseCommand maps /custos/mainlr")
     { juce::OSCMessage m ("/custos/mainlr"); m.addInt32 (0);
       const auto c = parseCommand (m); REQUIRE (c.kind == Command::MainLR); REQUIRE_FALSE (c.mainLROn); }
 }
+
+TEST_CASE ("parseCommand maps /custos/mainlr/query")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/mainlr/query")).kind == Command::MainLRQuery);
+}
