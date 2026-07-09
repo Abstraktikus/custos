@@ -39,6 +39,7 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/mode` | `mode:string` (`replace`\|`resident`) | set persisted mode (takes effect on next reload) |
 | `/custos/volume` | `gainDb:float` | live trim override |
 | `/custos/mainlr` | `on:int` (`0`\|`1`) | audio-fold: `1` sums all inner outputs onto stereo Out 1; `0` maps inner pairs across the 5 stereo out buses (local editor mirror; persisted in state v4) |
+| `/custos/mainlr/query` | — | → replies `/custos/mainlr` with the current fold flag (no state change) |
 | `/custos/favorites/begin` | — | start a favorites push |
 | `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal` |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
@@ -71,6 +72,7 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/loaded` | `N, path:string, boundCount:int, innerTotal:int` | inner changed (OSC **or** UI); empty path = cleared (`boundCount`/`innerTotal` 0). Carries `boundCount` so KM can dump immediately — no `hello` round-trip. `innerTotal` is the loaded synth's **full** param count, which may exceed `boundCount`/`facadeCap` (top params unbound/uncontrollable) |
 | `/custos/window/rect` | `N, x,y,w,h:int, movable:int` | synth-window position feedback — emitted when the operator **drags** the window (on mouse-up) or when a rect is (re)applied. Physical px. Lets KM capture the operator-chosen geometry for its settings |
 | `/custos/midi/route` | `N, t1..t16:int` | MIDI route feedback — the current input→output channel map; emitted when a `/custos/midi/route` command is applied and in reply to `/custos/midi/query` |
+| `/custos/mainlr` | `N, on:int` | Main L/R fold feedback — the current flag (`1` = all inner outputs summed onto stereo Out 1, `0` = inner pairs mapped across the 5 buses). Emitted after an applied `/custos/mainlr` set and in reply to `/custos/mainlr/query` |
 | `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list |
 
 **Ack strings:** `loaded <path> count=<n>` · `cleared` · `mode <m> (applies after reload)` ·
@@ -94,8 +96,10 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 - **Volume is a dB trim** applied inside Custos; `/custos/volume` overrides the per-synth default that
   arrived via the favorites push.
 - **Main L/R only is an audio-fold**: `/custos/mainlr 1` sums all inner outputs onto stereo Out 1; `0`
-  maps inner pairs across the 5 stereo out buses. Set-only (no feedback), persisted in Custos state v4;
-  the local editor toggle mirrors the same flag.
+  maps inner pairs across the 5 stereo out buses. Persisted in Custos state v4; the local editor toggle mirrors
+  the same flag. **Observable:** an applied set emits `/custos/mainlr <N, on>` feedback, and
+  `/custos/mainlr/query` returns the current flag on demand. The editor toggle does **not** emit — KM
+  re-queries to resync after an operator-driven UI flip.
 - **Custos loads a synth on a manual UI pick too**, and reports it via `/custos/loaded` — KM stays in
   sync either way.
 - **Favorites are machine-level and shared.** Push once to any one reachable instance (`favorites/begin

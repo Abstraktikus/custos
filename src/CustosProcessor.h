@@ -143,6 +143,9 @@ public:
     // Send /custos/midi/route (identity + current map) via outboundSink (no-op if null). Message thread.
     void emitMidiRoute();
 
+    // Send /custos/mainlr (identity + current fold flag) via outboundSink (no-op if null). Message thread.
+    void emitMainLR();
+
     // Local audio-fold mode (editor toggle, persisted state v4; NOT OSC). On = sum all inner outputs
     // into stereo Out 1; Off = inner pairs mapped across the 5 stereo output buses.
     void setMainLROnly (bool on) noexcept { mainLROnlyFlag.store (on); }

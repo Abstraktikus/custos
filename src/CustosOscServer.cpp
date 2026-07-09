@@ -48,6 +48,8 @@ Command parseCommand (const juce::OSCMessage& msg)
     if (addr == "/custos/mainlr")   // fold all inner outputs onto stereo Out 1 (audio setting; sibling of volume)
     { Command c; c.kind = Command::MainLR;
       if (msg.size() > 0 && msg[0].isInt32()) c.mainLROn = (msg[0].getInt32() != 0); return c; }
+    if (addr == "/custos/mainlr/query")
+        return { Command::MainLRQuery, {} };
     if (addr == "/custos/favorites/begin")
         return { Command::FavBegin, {} };
     if (addr == "/custos/favorite")
@@ -265,6 +267,10 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::MainLR:
             proc.setMainLROnly (cmd.mainLROn);
+            proc.emitMainLR();   // confirm the applied fold
+            break;
+        case Command::MainLRQuery:
+            proc.emitMainLR();
             break;
         case Command::FavBegin:
             proc.favoritesBegin();
