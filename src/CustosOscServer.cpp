@@ -267,6 +267,10 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::MainLR:
             proc.setMainLROnly (cmd.mainLROn);
+            proc.emitMainLR();   // confirm the applied fold
+            break;
+        case Command::MainLRQuery:
+            proc.emitMainLR();
             break;
         case Command::FavBegin:
             proc.favoritesBegin();
