@@ -193,6 +193,18 @@ TEST_CASE ("buildMidiRoute carries N first, then 16 targets")
     REQUIRE (m[16].getInt32() == 16);
 }
 
+TEST_CASE ("buildMainLR carries N first, then the fold flag")
+{
+    const auto on = buildMainLR (9, true);
+    REQUIRE (on.getAddressPattern().toString() == "/custos/mainlr");
+    REQUIRE (on.size() == 2);
+    REQUIRE (on[0].getInt32() == 9);
+    REQUIRE (on[1].getInt32() == 1);
+
+    const auto off = buildMainLR (9, false);
+    REQUIRE (off[1].getInt32() == 0);
+}
+
 TEST_CASE ("protoVer is 2 for contract v2")
 {
     REQUIRE (custos::kProtoVersion == 2);
