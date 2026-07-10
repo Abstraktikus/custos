@@ -46,6 +46,23 @@ TEST_CASE ("PARAM patchStep injects 1.0 into the paramUp/paramDown index")
     REQUIRE (fakePtr->getParameters()[2]->getValue() == Approx (1.0f));
 }
 
+TEST_CASE ("PARAM patchStep releases the previous hold before injecting the next (alternating next/prev)")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CustosProcessor proc;
+    auto fake = std::make_unique<FakeInnerProcessor> (4);
+    auto* fakePtr = fake.get();
+    proc.loadInner (std::move (fake), "C:/AL.vst3");
+    proc.setFavorites ({ [] { custos::Favorite f; f.name="AL"; f.path="C:/AL.vst3"; f.favOrder=1;
+                              f.controlType="PARAM"; f.paramDown=2; f.paramUp=3; return f; }() });
+
+    proc.patchNext();   // -> paramUp = index 3 set to 1.0 (release timer armed, not yet fired)
+    proc.patchPrev();   // -> before injecting index 2, must release the still-held index 3
+
+    REQUIRE (fakePtr->getParameters()[3]->getValue() == Approx (0.0f));   // released, not stranded at 1.0
+    REQUIRE (fakePtr->getParameters()[2]->getValue() == Approx (1.0f));
+}
+
 TEST_CASE ("PARAM patchStep with an out-of-range index is a no-op")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

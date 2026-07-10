@@ -223,6 +223,7 @@ private:
 
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9
+    void releasePendingInject();                  // release any held PARAM inject on the CURRENT inner (reuse/swap-safe)
 
     // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
     // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.

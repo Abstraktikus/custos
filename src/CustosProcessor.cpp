@@ -69,6 +69,7 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
     browseDebounce.stopTimer();   // this load (browse commit / direct load / test attach) clears in-flight
+    releasePendingInject();       // release any pending PARAM inject on the OLD inner before it's swapped out
 
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
@@ -564,6 +565,8 @@ void CustosProcessor::patchStep (int delta)
 
 void CustosProcessor::patchInjectParam (int paramIndex)
 {
+    releasePendingInject();   // release whatever the previous inject is still holding (reuse-safe)
+
     if (inner == nullptr) return;
     auto& params = inner->getParameters();
     if (paramIndex < 0 || paramIndex >= params.size()) return;   // out of range -> no-op
@@ -578,6 +581,19 @@ void CustosProcessor::patchInjectParam (int paramIndex)
     };
     patchInjectTimer.startTimer (150);   // release ~150 ms later (heavy synths need the hold)
 }
+
+void CustosProcessor::releasePendingInject()
+{
+    // Releases any pending PARAM inject on the CURRENT inner. Called before starting a new inject
+    // (reuse-safe: alternating patchNext/patchPrev no longer strands the previous param at 1.0) and
+    // before loadInner swaps the inner pointer (swap-safe: the release lands on the OLD synth, not
+    // whatever ends up loaded next). No-op when nothing is pending.
+    if (patchInjectIndex >= 0 && inner != nullptr && patchInjectIndex < inner->getParameters().size())
+        inner->getParameters()[patchInjectIndex]->setValueNotifyingHost (0.0f);
+    patchInjectTimer.stopTimer();
+    patchInjectIndex = -1;
+}
+
 void CustosProcessor::patchSendProgramChange (int) {}   // Task 9 fills this in
 
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }
