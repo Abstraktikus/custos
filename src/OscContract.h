@@ -76,8 +76,9 @@ inline juce::OSCMessage buildMainLR (int n, bool on)
     return juce::OSCMessage ("/custos/mainlr", n, on ? 1 : 0);
 }
 
-// Patch-step feedback (Custos -> KM/GP). controlType = the method that ran (PARAM|PC|PRESET);
-// detail is best-effort ("+"/"-" for PARAM, program number for PC, "" otherwise).
+// Patch-step feedback (Custos -> KM/GP). controlType = the native method that ran, PARAM or PC only
+// (the PRESET fallback reports via /custos/preset/* instead, never this).
+// detail is best-effort ("+"/"-" for PARAM, program number for PC).
 inline juce::OSCMessage buildPatchStepped (int n, const juce::String& controlType, const juce::String& detail)
 {
     return juce::OSCMessage ("/custos/patch/stepped", n, controlType, detail);
