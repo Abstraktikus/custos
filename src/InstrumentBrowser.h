@@ -1,4 +1,5 @@
 #pragma once
+#include <juce_core/juce_core.h>
 
 namespace custos
 {
@@ -22,5 +23,16 @@ inline BrowseStep browseStep (int cur, int delta, int count)
     if (nx >= count) return { 0, true };
     if (nx < 0)      return { count - 1, true };
     return { nx, false };
+}
+
+enum class PatchMethod { Param, Pc, PresetFallback };
+
+// Explicit-only: PC is never inferred. Anything not PARAM/PC (incl. PRESET, NONE, empty) falls
+// back to the Preset store — the only implicit method, always available.
+inline PatchMethod patchMethodFor (const juce::String& controlType)
+{
+    if (controlType == "PARAM") return PatchMethod::Param;
+    if (controlType == "PC")    return PatchMethod::Pc;
+    return PatchMethod::PresetFallback;
 }
 }
