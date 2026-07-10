@@ -56,6 +56,7 @@ public:
     void setFavorites (std::vector<Favorite> favs);
     const std::vector<Favorite>& getFavorites() const noexcept { return favorites; }
     void loadFavorite (int index);   // loads getFavorites()[index]
+    bool loadByName (const juce::String& name);   // resolve name->path from the list; load; false if no match
 
     // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
     std::function<void(const juce::OSCMessage&)> outboundSink;

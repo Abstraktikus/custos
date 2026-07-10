@@ -117,6 +117,14 @@ TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/set")).kind == Command::Unknown);   // missing arg
 }
 
+TEST_CASE ("parseCommand maps /custos/instrument/load with a name")
+{
+    juce::OSCMessage m ("/custos/instrument/load", juce::String ("Analog Lab V"));
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::InstrumentLoad);
+    REQUIRE (c.path == "Analog Lab V");
+}
+
 TEST_CASE ("parseCommand maps /custos/window titled")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/window", juce::String ("titled"))).kind == Command::WindowTitled);

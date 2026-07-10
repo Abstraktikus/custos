@@ -23,6 +23,7 @@ add_executable(custos_tests
     VolumeTest.cpp
     FavoritesStoreTest.cpp
     FavoritesTest.cpp
+    InstrumentLoadTest.cpp
     MidiRouteTest.cpp
     MidiRouteMatrixTest.cpp
     AudioBusMapperTest.cpp

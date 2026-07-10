@@ -142,6 +142,12 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/instrument/load")
+    {
+        if (msg.size() >= 1 && msg[0].isString())
+            return { Command::InstrumentLoad, msg[0].getString() };
+        return { Command::Unknown, {} };
+    }
     if (addr == "/custos/preset/setroot")
     { Command c; c.kind = Command::PresetSetRoot;
       if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
@@ -318,6 +324,12 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
         case Command::BrowseSet:
             proc.setBrowseIndex (cmd.count);
             break;
+        case Command::InstrumentLoad:
+        {
+            const bool ok = proc.loadByName (cmd.path);
+            if (! ok) ack ("error unknown instrument " + cmd.path);
+            break;   // success is conveyed by /custos/loaded (emitted inside load())
+        }
         case Command::MidiQuery:
             proc.emitMidiRoute();
             break;

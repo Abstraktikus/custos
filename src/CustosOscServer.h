@@ -11,7 +11,7 @@ struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
                 WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
-                BrowseNext, BrowsePrev, BrowseSet,
+                BrowseNext, BrowsePrev, BrowseSet, InstrumentLoad,
                 PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
                 PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery, Unknown } kind = Unknown;
     juce::String path;

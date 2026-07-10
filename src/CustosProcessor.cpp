@@ -200,6 +200,13 @@ void CustosProcessor::loadFavorite (int index)
         load (favorites[(size_t) index].path);
 }
 
+bool CustosProcessor::loadByName (const juce::String& name)
+{
+    for (const auto& f : favorites)
+        if (f.name == name) { load (f.path); return true; }
+    return false;
+}
+
 int CustosProcessor::indexOfPath (const juce::String& path) const
 {
     if (path.isEmpty()) return -1;
