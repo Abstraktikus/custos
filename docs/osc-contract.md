@@ -53,16 +53,27 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/instrument/load` | `name:string` | load an instrument by its **name** (looked up against the machine config; Custos resolves name→path internally — the caller never needs the path). No match → `/custos/ack error unknown instrument <name>` (not mirrored to GP as browsing/loaded); success is conveyed by `/custos/loaded` as usual |
 | `/custos/patch/next` | — | step the **current instrument's patch axis** +1, dispatched by its favourite entry's `controlType` (see the patch-axis semantics below). `PARAM`/`PC` report via `/custos/patch/stepped`; anything else falls back to the preset store (`presetNext`) and reports via `/custos/preset/browsing`+`/custos/preset/loaded` instead — **not** both |
 | `/custos/patch/prev` | — | step the patch axis −1. Same dispatch/fallback/report rules |
+| `/custos/preset/next` | — | step the loaded synth's **preset** cursor +1 (wrap) over its Custos snapshot store; preview the NAME via `/custos/preset/browsing`, then debounced load |
+| `/custos/preset/prev` | — | cursor −1 (wrap); same preview + deferred load |
+| `/custos/preset/set` | `index:int` | load the preset at sorted `index` immediately; emits `/custos/preset/loaded` or `/custos/preset/error` |
+| `/custos/preset/load` | `name:string` \| `index:int` | load a preset by name (or by sorted index); emits `loaded`/`error` |
+| `/custos/preset/save` | `name:string` | save the loaded synth's current state as a named `.cuspreset`; emits `/custos/preset/saved` or `error` |
+| `/custos/preset/rename` | `old:string, new:string` | rename a stored preset; emits `renamed`/`error` |
+| `/custos/preset/delete` | `name:string` | delete a stored preset; emits `deleted`/`error` |
+| `/custos/preset/list` | — | → replies `/custos/preset/list` (`N, count, names`) |
+| `/custos/preset/setroot` | `path:string` | set the machine-global preset-storage root (persisted); echoes `/custos/preset/root` |
 
 ---
 
 ## 3. Custos → KM  (send to `127.0.0.1:8000`; first arg always `N`)
 
-> **GP mirror:** `/custos/browsing`, `/custos/loaded`, `/custos/here`, `/custos/patch/stepped`, and
+> **GP mirror:** `/custos/browsing`, `/custos/loaded`, `/custos/here`, `/custos/patch/stepped`,
+> `/custos/preset/browsing`, `/custos/preset/loaded`, `/custos/preset/error`, and
 > **error-only** `/custos/ack` (text starting `error`) are additionally sent to **GP's OSC-in
 > `127.0.0.1:54344`** (not just the KM hub), so the **GP-Script can drive the Voice-Selector, the patch
-> axis, _and_ direct instrument load autonomously** without KM in the loop: `loaded` = success/ready,
-> `patch/stepped` = patch-axis feedback, error-`ack` = load failure, `here` = liveness/discovery.
+> axis, the preset axis, _and_ direct instrument load autonomously** without KM in the loop: `loaded` =
+> success/ready, `patch/stepped` = patch-axis feedback, `preset/browsing`\|`loaded` = preset-axis
+> feedback, error-`ack`\|`preset/error` = failure, `here` = liveness/discovery.
 > Success acks (`loaded … count=…`, `cleared`, `mode …`) are **not** mirrored (success is already
 > conveyed by `/custos/loaded`), and every other reply — notably the `/custos/param` dump stream —
 > goes to `:8000` only, to avoid flooding GP's OSC-in.
@@ -79,6 +90,12 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/mainlr` | `N, on:int` | Main L/R fold feedback — the current flag (`1` = all inner outputs summed onto stereo Out 1, `0` = inner pairs mapped across the 5 buses). Emitted after an applied `/custos/mainlr` set and in reply to `/custos/mainlr/query` |
 | `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list |
 | `/custos/patch/stepped` | `N, controlType:string, detail:string` | patch-axis feedback — reports the method that ran for the just-processed `/custos/patch/next`\|`prev` (`PARAM`\|`PC`; the `PRESET` fallback reports via `/custos/preset/browsing`+`/custos/preset/loaded` instead, not this address). `detail` is best-effort: `"+"`/`"-"` for `PARAM` (which direction was injected), the resulting program number (as a string) for `PC` |
+| `/custos/preset/browsing` | `N, name:string, idx:int` | preset-browse preview — the cursor's preset NAME while flipping (`preset/next`\|`prev`); **not loaded yet** (deferred load follows as `/custos/preset/loaded`). Mirrored to GP |
+| `/custos/preset/loaded` | `N, name:string, idx:int` | a preset was recalled (its state restored into the loaded synth). Mirrored to GP |
+| `/custos/preset/saved` \| `renamed` \| `deleted` | `N, name:string, idx:int` | preset-store edit confirmations (`idx` = new sorted index; `-1` for delete). KM hub only |
+| `/custos/preset/error` | `N, reason:string` | preset op failed (no synth / not found / wrong synth / write\|rename\|delete failed / index out of range). Mirrored to GP |
+| `/custos/preset/list` | `N, count:int, names:string…` | reply to `/custos/preset/list` — the loaded synth's preset names, alphabetical |
+| `/custos/preset/root` | `N, path:string` | reply to `/custos/preset/setroot` — the applied preset-storage root |
 
 **Ack strings:** `loaded <path> count=<n>` · `cleared` · `mode <m> (applies after reload)` ·
 `error <msg>`.
@@ -134,6 +151,11 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
   counter. **Anything else (`PRESET`, `NONE`, empty, unrecognized) falls back to the preset store**
   (`presetNext`/`presetPrev`) — the only implicit method, always available even for instruments with no
   `controlType` configured. PC is never inferred; it must be set explicitly.
+- **The preset store is per-synth Custos snapshots** — distinct from the synth's native patches (the
+  Patch axis). `/custos/preset/*` operate on `.cuspreset` files keyed by the loaded synth's class id,
+  under the machine-global root (`/custos/preset/setroot`, default `~/Documents/CustosPresets`). Preset
+  browsing/recall/errors mirror to GP (so GP drives the preset axis KM-less); store edits
+  (`save`/`rename`/`delete`/`list`/`root`) go to the KM hub only.
 - **No heartbeat.** Custos announces `/custos/here` on bind and answers `/custos/hello`, but sends no
   keepalive. Re-probing dead/absent instances is KM's job.
 - **N collision:** if two instances share an `N`, the second fails to bind `BASE+N`, shows a **visible
