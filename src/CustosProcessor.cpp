@@ -544,6 +544,27 @@ void CustosProcessor::presetSet (int index)
         presetCursor = index;
 }
 
+void CustosProcessor::patchNext() { patchStep (+1); }
+void CustosProcessor::patchPrev() { patchStep (-1); }
+
+void CustosProcessor::patchStep (int delta)
+{
+    juce::String controlType = "PRESET";
+    int pDown = 0, pUp = 0;
+    for (const auto& f : favorites)
+        if (f.path == currentSynthPath) { controlType = f.controlType; pDown = f.paramDown; pUp = f.paramUp; break; }
+
+    switch (patchMethodFor (controlType))
+    {
+        case PatchMethod::Param:          patchInjectParam (delta > 0 ? pUp : pDown); break;   // Task 8
+        case PatchMethod::Pc:             patchSendProgramChange (delta);            break;   // Task 9
+        case PatchMethod::PresetFallback: if (delta > 0) presetNext(); else presetPrev(); break;
+    }
+}
+
+void CustosProcessor::patchInjectParam (int) {}         // Task 8 fills this in
+void CustosProcessor::patchSendProgramChange (int) {}   // Task 9 fills this in
+
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }
 
 void CustosProcessor::drainPendingRecall()

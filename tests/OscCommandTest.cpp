@@ -212,3 +212,9 @@ TEST_CASE ("parseCommand keeps v2 /custos/favorite (5 args) working")
     REQUIRE (c.kind == Command::FavEntry);
     REQUIRE (c.fav.controlType == "PRESET");   // struct default
 }
+
+TEST_CASE ("parseCommand maps /custos/patch/next and /custos/patch/prev")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/next")).kind == Command::PatchNext);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/prev")).kind == Command::PatchPrev);
+}

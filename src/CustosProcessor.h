@@ -126,6 +126,10 @@ public:
     void presetPrev();               // cursor -1 (wrap)
     void presetSet (int index);      // absolute index: immediate load
 
+    void patchNext();               // step the factory sound forward (controlType dispatch)
+    void patchPrev();               // step the factory sound backward
+    void patchStep (int delta);     // shared: resolve controlType of the loaded synth and dispatch
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
@@ -213,6 +217,9 @@ private:
     DebounceTimer presetDebounce;           // reuse the browse debounce struct type
     void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
     void commitPresetLoad();                // debounce fired -> load the cursor
+
+    void patchInjectParam (int paramIndex);       // Task 8
+    void patchSendProgramChange (int delta);      // Task 9
 
     // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
     // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.
