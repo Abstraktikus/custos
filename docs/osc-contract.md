@@ -51,7 +51,7 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/instrument/prev` | `scope:int` (optional; `0`\|`1`) | cursor −1 (wrap), same `scope` rule. Same name-report + deferred load |
 | `/custos/instrument/set` | `i:int` | jump the cursor to index `i` (clamped). Same name-report + deferred load. No `scope` arg — `i` is an absolute index into the full instrument list |
 | `/custos/instrument/load` | `name:string` | load an instrument by its **name** (looked up against the machine config; Custos resolves name→path internally — the caller never needs the path). No match → `/custos/ack error unknown instrument <name>` (not mirrored to GP as browsing/loaded); success is conveyed by `/custos/loaded` as usual |
-| `/custos/patch/next` | — | step the **current instrument's patch axis** +1, dispatched by its favourite entry's `controlType` (see the patch-axis semantics below); falls back to the preset store (`presetNext`) when `controlType` is not `PARAM`/`PC`. Reports via `/custos/patch/stepped` (fallback case additionally reports `/custos/preset/browsing`+`/custos/preset/loaded` as usual) |
+| `/custos/patch/next` | — | step the **current instrument's patch axis** +1, dispatched by its favourite entry's `controlType` (see the patch-axis semantics below). `PARAM`/`PC` report via `/custos/patch/stepped`; anything else falls back to the preset store (`presetNext`) and reports via `/custos/preset/browsing`+`/custos/preset/loaded` instead — **not** both |
 | `/custos/patch/prev` | — | step the patch axis −1. Same dispatch/fallback/report rules |
 
 ---
