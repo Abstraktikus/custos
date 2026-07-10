@@ -35,3 +35,28 @@ TEST_CASE ("readFavorites on a missing file returns empty")
 {
     REQUIRE (readFavorites (juce::File ("C:/nonexistent/nope.json")).empty());
 }
+
+TEST_CASE ("Favorite round-trips controlType / paramDown / paramUp")
+{
+    std::vector<custos::Favorite> in;
+    custos::Favorite f;
+    f.name = "Analog Lab V"; f.path = "C:/AL.vst3"; f.favOrder = 3; f.gainDb = -3.0f;
+    f.brand = "Arturia"; f.slots = 500;
+    f.controlType = "PARAM"; f.paramDown = 498; f.paramUp = 499;
+    in.push_back (f);
+
+    const auto out = custos::favoritesFromJson (custos::favoritesToJson (in));
+    REQUIRE (out.size() == 1);
+    REQUIRE (out[0].controlType == "PARAM");
+    REQUIRE (out[0].paramDown == 498);
+    REQUIRE (out[0].paramUp  == 499);
+}
+
+TEST_CASE ("legacy Favorite JSON without controlType defaults to PRESET")
+{
+    const auto out = custos::favoritesFromJson (R"([{"name":"X","path":"C:/x.vst3","favOrder":1}])");
+    REQUIRE (out.size() == 1);
+    REQUIRE (out[0].controlType == "PRESET");
+    REQUIRE (out[0].paramDown == 0);
+    REQUIRE (out[0].paramUp  == 0);
+}
