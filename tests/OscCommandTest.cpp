@@ -99,6 +99,15 @@ TEST_CASE ("parseCommand maps /custos/instrument/next and /prev")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/prev")).kind == Command::BrowsePrev);
 }
 
+TEST_CASE ("parseCommand reads optional scope on /custos/instrument/next|prev")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/next")).scope == 0);      // default
+    juce::OSCMessage all ("/custos/instrument/next"); all.addInt32 (1);
+    const auto c = parseCommand (all);
+    REQUIRE (c.kind == Command::BrowseNext);
+    REQUIRE (c.scope == 1);
+}
+
 TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
 {
     juce::OSCMessage msg ("/custos/instrument/set", (juce::int32) 4);
@@ -106,6 +115,14 @@ TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
     REQUIRE (c.kind == Command::BrowseSet);
     REQUIRE (c.count == 4);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/set")).kind == Command::Unknown);   // missing arg
+}
+
+TEST_CASE ("parseCommand maps /custos/instrument/load with a name")
+{
+    juce::OSCMessage m ("/custos/instrument/load", juce::String ("Analog Lab V"));
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::InstrumentLoad);
+    REQUIRE (c.path == "Analog Lab V");
 }
 
 TEST_CASE ("parseCommand maps /custos/window titled")
@@ -172,4 +189,32 @@ TEST_CASE ("parseCommand maps /custos/mainlr")
 TEST_CASE ("parseCommand maps /custos/mainlr/query")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/mainlr/query")).kind == Command::MainLRQuery);
+}
+
+TEST_CASE ("parseCommand reads controlType/paramDown/paramUp on /custos/favorite")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("Analog Lab V"); m.addString ("C:/AL.vst3");
+    m.addInt32 (3); m.addFloat32 (-3.0f); m.addString ("Arturia"); m.addInt32 (500);
+    m.addString ("PARAM"); m.addInt32 (498); m.addInt32 (499);
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.controlType == "PARAM");
+    REQUIRE (c.fav.paramDown == 498);
+    REQUIRE (c.fav.paramUp  == 499);
+}
+
+TEST_CASE ("parseCommand keeps v2 /custos/favorite (5 args) working")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("X"); m.addString ("C:/x.vst3"); m.addInt32 (1); m.addFloat32 (0.0f);
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.controlType == "PRESET");   // struct default
+}
+
+TEST_CASE ("parseCommand maps /custos/patch/next and /custos/patch/prev")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/next")).kind == Command::PatchNext);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/prev")).kind == Command::PatchPrev);
 }

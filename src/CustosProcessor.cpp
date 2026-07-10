@@ -69,6 +69,7 @@ juce::AudioProcessorEditor* CustosProcessor::createEditor()
 bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path)
 {
     browseDebounce.stopTimer();   // this load (browse commit / direct load / test attach) clears in-flight
+    releasePendingInject();       // release any pending PARAM inject on the OLD inner before it's swapped out
 
     // The M2 synth window hosts the OUTGOING inner's editor — destroy it before the old inner.
     const WindowMode reopenAs      = windowMode;               // keep the window showing across a swap (browse UI)
@@ -200,6 +201,13 @@ void CustosProcessor::loadFavorite (int index)
         load (favorites[(size_t) index].path);
 }
 
+bool CustosProcessor::loadByName (const juce::String& name)
+{
+    for (const auto& f : favorites)
+        if (f.name == name) { load (f.path); return true; }
+    return false;
+}
+
 int CustosProcessor::indexOfPath (const juce::String& path) const
 {
     if (path.isEmpty()) return -1;
@@ -213,7 +221,7 @@ void CustosProcessor::traceN (const juce::String& msg) const
     trace ("N" + juce::String (identityN) + "  " + msg);
 }
 
-void CustosProcessor::browseInstrument (int delta)
+void CustosProcessor::browseInstrument (int delta, int scope)
 {
     const int cnt = (int) favorites.size();
     if (cnt == 0) return;
@@ -226,7 +234,8 @@ void CustosProcessor::browseInstrument (int delta)
         const auto step = browseStep (idx, delta, cnt);
         idx = step.index;
         wrapped = wrapped || step.wrapped;
-        if (favouriteFits (favorites[(size_t) idx].slots, cap)) break;
+        if (favouriteFits (favorites[(size_t) idx].slots, cap)
+            && favouriteInScope (favorites[(size_t) idx].favOrder, scope)) break;
     }
     browseIndex = idx;
     const auto& f = favorites[(size_t) browseIndex];
@@ -341,6 +350,10 @@ void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     std::array<std::uint8_t, 16> snap {};
     for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
     applyMidiRoute (midi, snap, routeScratch);
+
+    const int pc = pendingPc.exchange (-1);
+    if (pc >= 0)
+        midi.addEvent (juce::MidiMessage::programChange (1, pc), 0);
 
     const int n = buffer.getNumSamples();
     {
@@ -534,6 +547,74 @@ void CustosProcessor::presetSet (int index)
     presetDebounce.stopTimer();
     if (loadPresetAt (index))   // loads + emits; false (+ error) when out of range
         presetCursor = index;
+}
+
+void CustosProcessor::patchNext() { patchStep (+1); }
+void CustosProcessor::patchPrev() { patchStep (-1); }
+
+void CustosProcessor::patchStep (int delta)
+{
+    juce::String controlType = "PRESET";
+    int pDown = 0, pUp = 0;
+    for (const auto& f : favorites)
+        if (f.path == currentSynthPath) { controlType = f.controlType; pDown = f.paramDown; pUp = f.paramUp; break; }
+
+    switch (patchMethodFor (controlType))
+    {
+        case PatchMethod::Param:
+            patchInjectParam (delta > 0 ? pUp : pDown);
+            emitPatchStepped ("PARAM", delta > 0 ? "+" : "-");
+            break;
+        case PatchMethod::Pc:
+            patchSendProgramChange (delta);
+            emitPatchStepped ("PC", juce::String (pcProgram));
+            break;
+        case PatchMethod::PresetFallback:
+            if (delta > 0) presetNext(); else presetPrev();
+            break;
+    }
+}
+
+void CustosProcessor::patchInjectParam (int paramIndex)
+{
+    releasePendingInject();   // release whatever the previous inject is still holding (reuse-safe)
+
+    if (inner == nullptr) return;
+    auto& params = inner->getParameters();
+    if (paramIndex < 0 || paramIndex >= params.size()) return;   // out of range -> no-op
+
+    params[paramIndex]->setValueNotifyingHost (1.0f);            // momentary press
+    patchInjectIndex = paramIndex;
+    patchInjectTimer.cb = [this]
+    {
+        if (inner != nullptr && patchInjectIndex >= 0 && patchInjectIndex < inner->getParameters().size())
+            inner->getParameters()[patchInjectIndex]->setValueNotifyingHost (0.0f);   // release
+        patchInjectIndex = -1;
+    };
+    patchInjectTimer.startTimer (150);   // release ~150 ms later (heavy synths need the hold)
+}
+
+void CustosProcessor::releasePendingInject()
+{
+    // Releases any pending PARAM inject on the CURRENT inner. Called before starting a new inject
+    // (reuse-safe: alternating patchNext/patchPrev no longer strands the previous param at 1.0) and
+    // before loadInner swaps the inner pointer (swap-safe: the release lands on the OLD synth, not
+    // whatever ends up loaded next). No-op when nothing is pending.
+    if (patchInjectIndex >= 0 && inner != nullptr && patchInjectIndex < inner->getParameters().size())
+        inner->getParameters()[patchInjectIndex]->setValueNotifyingHost (0.0f);
+    patchInjectTimer.stopTimer();
+    patchInjectIndex = -1;
+}
+
+void CustosProcessor::patchSendProgramChange (int delta)
+{
+    pcProgram = ((pcProgram + delta) % 128 + 128) % 128;   // wrap 0..127
+    pendingPc.store (pcProgram);
+}
+
+void CustosProcessor::emitPatchStepped (const juce::String& controlType, const juce::String& detail)
+{
+    if (outboundSink) outboundSink (buildPatchStepped (identityN, controlType, detail));
 }
 
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }

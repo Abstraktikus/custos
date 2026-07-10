@@ -8,7 +8,7 @@
 
 namespace custos
 {
-constexpr int kProtoVersion = 2;
+constexpr int kProtoVersion = 3;
 
 // Deterministic 1-based mapping. N in 1..15 -> BASE+N; anything else -> 0 (invalid / unassigned).
 inline int oscPortForIdentity (int n)
@@ -74,6 +74,14 @@ inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)
 inline juce::OSCMessage buildMainLR (int n, bool on)
 {
     return juce::OSCMessage ("/custos/mainlr", n, on ? 1 : 0);
+}
+
+// Patch-step feedback (Custos -> KM/GP). controlType = the native method that ran, PARAM or PC only
+// (the PRESET fallback reports via /custos/preset/* instead, never this).
+// detail is best-effort ("+"/"-" for PARAM, program number for PC).
+inline juce::OSCMessage buildPatchStepped (int n, const juce::String& controlType, const juce::String& detail)
+{
+    return juce::OSCMessage ("/custos/patch/stepped", n, controlType, detail);
 }
 
 }

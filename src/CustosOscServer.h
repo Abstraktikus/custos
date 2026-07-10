@@ -11,9 +11,10 @@ struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
                 WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
-                BrowseNext, BrowsePrev, BrowseSet,
+                BrowseNext, BrowsePrev, BrowseSet, InstrumentLoad,
                 PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
-                PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery, Unknown } kind = Unknown;
+                PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery,
+                PatchNext, PatchPrev, Unknown } kind = Unknown;
     juce::String path;
     int start = 0, count = 0;   // Params; count also = FavEnd count
     float gainDb = 0.0f;        // Volume
@@ -25,6 +26,7 @@ struct Command
     std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
     juce::String presetName, presetNewName, rootPath;   // preset verbs
     int presetIndex = -1;                               // PresetSet, or PresetLoad-by-index
+    int scope = 0;              // BrowseNext/Prev: 0 = favourites, 1 = all
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.
@@ -37,7 +39,8 @@ Command parseCommand (const juce::OSCMessage& msg);
 // KM-hub-only. `ackText` is only consulted for /custos/ack (error → mirror).
 inline bool gpMirrorsFeedback (const juce::String& addr, const juce::String& ackText)
 {
-    if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here")
+    if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here"
+        || addr == "/custos/patch/stepped")
         return true;
     if (addr == "/custos/preset/browsing" || addr == "/custos/preset/loaded"
         || addr == "/custos/preset/error")

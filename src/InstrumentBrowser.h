@@ -1,4 +1,5 @@
 #pragma once
+#include <juce_core/juce_core.h>
 
 namespace custos
 {
@@ -8,6 +9,9 @@ namespace custos
 // A favourite "fits" a facade of `facadeCap` slots when its param count is unknown (0) or <= cap.
 // A Custos 1000 must not browse/load a 4000-param synth (its top params would be unbindable).
 inline bool favouriteFits (int slots, int facadeCap) { return slots <= 0 || slots <= facadeCap; }
+
+// Browse-scope predicate. scope 0 = favourites only (favOrder >= 1); scope 1 = all instruments.
+inline bool favouriteInScope (int favOrder, int scope) { return scope != 0 || favOrder >= 1; }
 
 struct BrowseStep { int index; bool wrapped; };
 
@@ -19,5 +23,16 @@ inline BrowseStep browseStep (int cur, int delta, int count)
     if (nx >= count) return { 0, true };
     if (nx < 0)      return { count - 1, true };
     return { nx, false };
+}
+
+enum class PatchMethod { Param, Pc, PresetFallback };
+
+// Explicit-only: PC is never inferred. Anything not PARAM/PC (incl. PRESET, NONE, empty) falls
+// back to the Preset store — the only implicit method, always available.
+inline PatchMethod patchMethodFor (const juce::String& controlType)
+{
+    if (controlType == "PARAM") return PatchMethod::Param;
+    if (controlType == "PC")    return PatchMethod::Pc;
+    return PatchMethod::PresetFallback;
 }
 }

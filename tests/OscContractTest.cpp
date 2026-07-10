@@ -205,9 +205,9 @@ TEST_CASE ("buildMainLR carries N first, then the fold flag")
     REQUIRE (off[1].getInt32() == 0);
 }
 
-TEST_CASE ("protoVer is 2 for contract v2")
+TEST_CASE ("proto version is 3")
 {
-    REQUIRE (custos::kProtoVersion == 2);
+    REQUIRE (custos::kProtoVersion == 3);
 }
 
 TEST_CASE ("GP mirrors preset recall feedback")
@@ -217,4 +217,18 @@ TEST_CASE ("GP mirrors preset recall feedback")
     REQUIRE (gpMirrorsFeedback ("/custos/preset/error", {}));
     REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/saved", {}));   // management noise stays hub-only
     REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/list", {}));
+}
+
+TEST_CASE ("buildPatchStepped carries n, controlType, detail")
+{
+    const auto m = custos::buildPatchStepped (2, "PC", "17");
+    REQUIRE (m.getAddressPattern().toString() == "/custos/patch/stepped");
+    REQUIRE (m[0].getInt32()  == 2);
+    REQUIRE (m[1].getString() == "PC");
+    REQUIRE (m[2].getString() == "17");
+}
+
+TEST_CASE ("gpMirrorsFeedback mirrors /custos/patch/stepped")
+{
+    REQUIRE (custos::gpMirrorsFeedback ("/custos/patch/stepped", {}) == true);
 }

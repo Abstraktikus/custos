@@ -67,6 +67,12 @@ Command parseCommand (const juce::OSCMessage& msg)
                 c.fav.brand = msg[5].getString();
             if (msg.size() >= 7 && msg[6].isInt32())    // slots (param count) optional 7th arg
                 c.fav.slots = msg[6].getInt32();
+            if (msg.size() >= 8 && msg[7].isString())   // controlType optional 8th arg
+                c.fav.controlType = msg[7].getString();
+            if (msg.size() >= 9 && msg[8].isInt32())    // paramDown optional 9th arg
+                c.fav.paramDown = msg[8].getInt32();
+            if (msg.size() >= 10 && msg[9].isInt32())   // paramUp optional 10th arg
+                c.fav.paramUp = msg[9].getInt32();
             return c;
         }
         return { Command::Unknown, {} };
@@ -122,10 +128,12 @@ Command parseCommand (const juce::OSCMessage& msg)
     }
     if (addr == "/custos/midi/query")
         return { Command::MidiQuery, {} };
-    if (addr == "/custos/instrument/next")
-        return { Command::BrowseNext, {} };
-    if (addr == "/custos/instrument/prev")
-        return { Command::BrowsePrev, {} };
+    if (addr == "/custos/instrument/next" || addr == "/custos/instrument/prev")
+    {
+        Command c; c.kind = (addr.endsWith ("next")) ? Command::BrowseNext : Command::BrowsePrev;
+        if (msg.size() >= 1 && msg[0].isInt32()) c.scope = msg[0].getInt32();
+        return c;
+    }
     if (addr == "/custos/instrument/set")
     {
         if (msg.size() >= 1 && msg[0].isInt32())
@@ -134,6 +142,14 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/instrument/load")
+    {
+        if (msg.size() >= 1 && msg[0].isString())
+            return { Command::InstrumentLoad, msg[0].getString() };
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/patch/next") { Command c; c.kind = Command::PatchNext; return c; }
+    if (addr == "/custos/patch/prev") { Command c; c.kind = Command::PatchPrev; return c; }
     if (addr == "/custos/preset/setroot")
     { Command c; c.kind = Command::PresetSetRoot;
       if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
@@ -174,7 +190,7 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
         }
         maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
-    proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
+    proc.setFavorites (readInstruments (instrumentsConfigFile(), favoritesConfigFile()));  // new, else migrate legacy
 }
 
 CustosOscServer::~CustosOscServer()
@@ -280,7 +296,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::FavEnd:
             proc.favoritesEnd();
-            writeFavorites (favoritesConfigFile(), proc.getFavorites());   // shared machine config
+            writeFavorites (instrumentsConfigFile(), proc.getFavorites());   // shared machine config
             break;
         case Command::WindowShow:
             proc.showSynthWindow();
@@ -302,13 +318,25 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         }
         case Command::BrowseNext:
-            proc.browseInstrument (+1);
+            proc.browseInstrument (+1, cmd.scope);
             break;
         case Command::BrowsePrev:
-            proc.browseInstrument (-1);
+            proc.browseInstrument (-1, cmd.scope);
             break;
         case Command::BrowseSet:
             proc.setBrowseIndex (cmd.count);
+            break;
+        case Command::InstrumentLoad:
+        {
+            const bool ok = proc.loadByName (cmd.path);
+            if (! ok) ack ("error unknown instrument " + cmd.path);
+            break;   // success is conveyed by /custos/loaded (emitted inside load())
+        }
+        case Command::PatchNext:
+            proc.patchNext();
+            break;
+        case Command::PatchPrev:
+            proc.patchPrev();
             break;
         case Command::MidiQuery:
             proc.emitMidiRoute();

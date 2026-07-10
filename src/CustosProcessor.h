@@ -56,6 +56,7 @@ public:
     void setFavorites (std::vector<Favorite> favs);
     const std::vector<Favorite>& getFavorites() const noexcept { return favorites; }
     void loadFavorite (int index);   // loads getFavorites()[index]
+    bool loadByName (const juce::String& name);   // resolve name->path from the list; load; false if no match
 
     // Set by CustosOscServer to send to the KM hub; null in unit tests (emission is then a no-op).
     std::function<void(const juce::OSCMessage&)> outboundSink;
@@ -125,6 +126,11 @@ public:
     void presetPrev();               // cursor -1 (wrap)
     void presetSet (int index);      // absolute index: immediate load
 
+    void patchNext();               // step the factory sound forward (controlType dispatch)
+    void patchPrev();               // step the factory sound backward
+    void patchStep (int delta);     // shared: resolve controlType of the loaded synth and dispatch
+    int pendingProgram() const noexcept { return pendingPc.load(); }   // test observer: queued PC program (-1 = none)
+
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
@@ -154,7 +160,7 @@ public:
     // Prev/Next favourite browsing over OSC (message thread). Flipping reports only the NAME + arms a
     // 400 ms debounce; when flipping stops the debounce loads the cursor's synth (de-duped vs the loaded
     // one). delta = +1 (next) / -1 (prev); setBrowseIndex jumps to a specific index.
-    void browseInstrument (int delta);
+    void browseInstrument (int delta, int scope = 0);
     void setBrowseIndex (int i);
 
 protected:
@@ -212,6 +218,17 @@ private:
     DebounceTimer presetDebounce;           // reuse the browse debounce struct type
     void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
     void commitPresetLoad();                // debounce fired -> load the cursor
+
+    DebounceTimer patchInjectTimer;   // reuse DebounceTimer; resets the injected param after the hold
+    int patchInjectIndex = -1;        // param index currently held at 1.0 (-1 = none)
+
+    void patchInjectParam (int paramIndex);       // Task 8
+    void patchSendProgramChange (int delta);      // Task 9
+    void releasePendingInject();                  // release any held PARAM inject on the CURRENT inner (reuse/swap-safe)
+    void emitPatchStepped (const juce::String& controlType, const juce::String& detail);   // /custos/patch/stepped via outboundSink (Task 10)
+
+    int pcProgram = 0;                              // last program sent (0..127); message thread only
+    std::atomic<int> pendingPc { -1 };              // program queued for the next processBlock (-1 = none)
 
     // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
     // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.
