@@ -218,3 +218,17 @@ TEST_CASE ("GP mirrors preset recall feedback")
     REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/saved", {}));   // management noise stays hub-only
     REQUIRE_FALSE (gpMirrorsFeedback ("/custos/preset/list", {}));
 }
+
+TEST_CASE ("buildPatchStepped carries n, controlType, detail")
+{
+    const auto m = custos::buildPatchStepped (2, "PC", "17");
+    REQUIRE (m.getAddressPattern().toString() == "/custos/patch/stepped");
+    REQUIRE (m[0].getInt32()  == 2);
+    REQUIRE (m[1].getString() == "PC");
+    REQUIRE (m[2].getString() == "17");
+}
+
+TEST_CASE ("gpMirrorsFeedback mirrors /custos/patch/stepped")
+{
+    REQUIRE (custos::gpMirrorsFeedback ("/custos/patch/stepped", {}) == true);
+}

@@ -561,9 +561,17 @@ void CustosProcessor::patchStep (int delta)
 
     switch (patchMethodFor (controlType))
     {
-        case PatchMethod::Param:          patchInjectParam (delta > 0 ? pUp : pDown); break;   // Task 8
-        case PatchMethod::Pc:             patchSendProgramChange (delta);            break;   // Task 9
-        case PatchMethod::PresetFallback: if (delta > 0) presetNext(); else presetPrev(); break;
+        case PatchMethod::Param:
+            patchInjectParam (delta > 0 ? pUp : pDown);
+            emitPatchStepped ("PARAM", delta > 0 ? "+" : "-");
+            break;
+        case PatchMethod::Pc:
+            patchSendProgramChange (delta);
+            emitPatchStepped ("PC", juce::String (pcProgram));
+            break;
+        case PatchMethod::PresetFallback:
+            if (delta > 0) presetNext(); else presetPrev();
+            break;
     }
 }
 
@@ -602,6 +610,11 @@ void CustosProcessor::patchSendProgramChange (int delta)
 {
     pcProgram = ((pcProgram + delta) % 128 + 128) % 128;   // wrap 0..127
     pendingPc.store (pcProgram);
+}
+
+void CustosProcessor::emitPatchStepped (const juce::String& controlType, const juce::String& detail)
+{
+    if (outboundSink) outboundSink (buildPatchStepped (identityN, controlType, detail));
 }
 
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }

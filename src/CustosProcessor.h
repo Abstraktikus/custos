@@ -225,6 +225,7 @@ private:
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9
     void releasePendingInject();                  // release any held PARAM inject on the CURRENT inner (reuse/swap-safe)
+    void emitPatchStepped (const juce::String& controlType, const juce::String& detail);   // /custos/patch/stepped via outboundSink (Task 10)
 
     int pcProgram = 0;                              // last program sent (0..127); message thread only
     std::atomic<int> pendingPc { -1 };              // program queued for the next processBlock (-1 = none)

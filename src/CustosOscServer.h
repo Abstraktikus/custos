@@ -39,7 +39,8 @@ Command parseCommand (const juce::OSCMessage& msg);
 // KM-hub-only. `ackText` is only consulted for /custos/ack (error → mirror).
 inline bool gpMirrorsFeedback (const juce::String& addr, const juce::String& ackText)
 {
-    if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here")
+    if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here"
+        || addr == "/custos/patch/stepped")
         return true;
     if (addr == "/custos/preset/browsing" || addr == "/custos/preset/loaded"
         || addr == "/custos/preset/error")
