@@ -67,6 +67,12 @@ Command parseCommand (const juce::OSCMessage& msg)
                 c.fav.brand = msg[5].getString();
             if (msg.size() >= 7 && msg[6].isInt32())    // slots (param count) optional 7th arg
                 c.fav.slots = msg[6].getInt32();
+            if (msg.size() >= 8 && msg[7].isString())   // controlType optional 8th arg
+                c.fav.controlType = msg[7].getString();
+            if (msg.size() >= 9 && msg[8].isInt32())    // paramDown optional 9th arg
+                c.fav.paramDown = msg[8].getInt32();
+            if (msg.size() >= 10 && msg[9].isInt32())   // paramUp optional 10th arg
+                c.fav.paramUp = msg[9].getInt32();
             return c;
         }
         return { Command::Unknown, {} };

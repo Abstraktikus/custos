@@ -173,3 +173,25 @@ TEST_CASE ("parseCommand maps /custos/mainlr/query")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/mainlr/query")).kind == Command::MainLRQuery);
 }
+
+TEST_CASE ("parseCommand reads controlType/paramDown/paramUp on /custos/favorite")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("Analog Lab V"); m.addString ("C:/AL.vst3");
+    m.addInt32 (3); m.addFloat32 (-3.0f); m.addString ("Arturia"); m.addInt32 (500);
+    m.addString ("PARAM"); m.addInt32 (498); m.addInt32 (499);
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.controlType == "PARAM");
+    REQUIRE (c.fav.paramDown == 498);
+    REQUIRE (c.fav.paramUp  == 499);
+}
+
+TEST_CASE ("parseCommand keeps v2 /custos/favorite (5 args) working")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("X"); m.addString ("C:/x.vst3"); m.addInt32 (1); m.addFloat32 (0.0f);
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.controlType == "PRESET");   // struct default
+}
