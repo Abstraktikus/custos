@@ -562,7 +562,22 @@ void CustosProcessor::patchStep (int delta)
     }
 }
 
-void CustosProcessor::patchInjectParam (int) {}         // Task 8 fills this in
+void CustosProcessor::patchInjectParam (int paramIndex)
+{
+    if (inner == nullptr) return;
+    auto& params = inner->getParameters();
+    if (paramIndex < 0 || paramIndex >= params.size()) return;   // out of range -> no-op
+
+    params[paramIndex]->setValueNotifyingHost (1.0f);            // momentary press
+    patchInjectIndex = paramIndex;
+    patchInjectTimer.cb = [this]
+    {
+        if (inner != nullptr && patchInjectIndex >= 0 && patchInjectIndex < inner->getParameters().size())
+            inner->getParameters()[patchInjectIndex]->setValueNotifyingHost (0.0f);   // release
+        patchInjectIndex = -1;
+    };
+    patchInjectTimer.startTimer (150);   // release ~150 ms later (heavy synths need the hold)
+}
 void CustosProcessor::patchSendProgramChange (int) {}   // Task 9 fills this in
 
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }

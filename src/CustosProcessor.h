@@ -218,6 +218,9 @@ private:
     void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
     void commitPresetLoad();                // debounce fired -> load the cursor
 
+    DebounceTimer patchInjectTimer;   // reuse DebounceTimer; resets the injected param after the hold
+    int patchInjectIndex = -1;        // param index currently held at 1.0 (-1 = none)
+
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9
 
