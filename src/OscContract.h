@@ -8,7 +8,7 @@
 
 namespace custos
 {
-constexpr int kProtoVersion = 2;
+constexpr int kProtoVersion = 3;
 
 // Deterministic 1-based mapping. N in 1..15 -> BASE+N; anything else -> 0 (invalid / unassigned).
 inline int oscPortForIdentity (int n)

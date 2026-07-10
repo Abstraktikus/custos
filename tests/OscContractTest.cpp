@@ -205,9 +205,9 @@ TEST_CASE ("buildMainLR carries N first, then the fold flag")
     REQUIRE (off[1].getInt32() == 0);
 }
 
-TEST_CASE ("protoVer is 2 for contract v2")
+TEST_CASE ("proto version is 3")
 {
-    REQUIRE (custos::kProtoVersion == 2);
+    REQUIRE (custos::kProtoVersion == 3);
 }
 
 TEST_CASE ("GP mirrors preset recall feedback")
