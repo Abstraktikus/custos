@@ -6,7 +6,7 @@
 
 **Architecture:** Extend the existing favourites store into a full instrument list carrying preset-stepping metadata (`controlType`/`paramDown`/`paramUp`), add stateless scope to instrument browsing, add load-by-name, and add a Patch axis that dispatches by `controlType` (PARAM param-inject / PC program-change / PRESET-store fallback). All new wire verbs extend the v2 contract back-compatibly.
 
-**Tech Stack:** C++17, JUCE 8, Catch2, CMake+Ninja (MSVC). Build: `scripts\build.cmd custos_tests Custos` (self-sets-up MSVC via `_vsenv.cmd`; run from `c:\dev\custos`). Test suite: `scripts\test.cmd` (ctest). Filter one Catch2 case: `build\tests\custos_tests.exe "<test name>"` (Ninja single-config — no `Debug/` subfolder).
+**Tech Stack:** C++17, JUCE 8, Catch2, CMake+Ninja (MSVC). Build: `scripts\build.cmd custos_tests Custos1000` (self-sets-up MSVC via `_vsenv.cmd`; run from `c:\dev\custos`). Test suite: `scripts\test.cmd` (ctest). Filter one Catch2 case: `build\tests\custos_tests.exe "<test name>"` (Ninja single-config — no `Debug/` subfolder).
 
 ## Global Constraints
 
@@ -205,7 +205,7 @@ with:
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS (new migration case + full suite; Custos target still links).
 
 - [ ] **Step 7: Commit**
@@ -406,7 +406,7 @@ In `src/CustosOscServer.cpp`, `oscMessageReceived`, update the browse cases:
 
 - [ ] **Step 9: Run the full suite — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS (predicate + parse + existing browse tests; Custos links).
 
 - [ ] **Step 10: Commit**
@@ -536,7 +536,7 @@ In `src/CustosOscServer.cpp`, `oscMessageReceived`, after the `BrowseSet` case:
 
 - [ ] **Step 9: Run the full suite — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS.
 
 - [ ] **Step 10: Commit**
@@ -750,7 +750,7 @@ In `src/CustosOscServer.cpp`, `oscMessageReceived`, after the `InstrumentLoad` c
 
 - [ ] **Step 9: Run the fallback test + suite — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS (fallback is exercised; Param/Pc are no-ops for now).
 
 - [ ] **Step 10: Commit**
@@ -934,7 +934,7 @@ In `src/CustosProcessor.cpp`, `processBlock`, immediately after the `applyMidiRo
 
 - [ ] **Step 5: Run the tests — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -1043,7 +1043,7 @@ Add `#include "OscContract.h"` to `src/CustosProcessor.cpp` if not already prese
 
 - [ ] **Step 5: Run the suite — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -1091,7 +1091,7 @@ In `docs/osc-contract.md`: change the header to `protoVer = 3`; in the §2 KM→
 
 - [ ] **Step 5: Run the suite — PASS**
 
-Run: `scripts\build.cmd custos_tests Custos && scripts\test.cmd`
+Run: `scripts\build.cmd custos_tests Custos1000 && scripts\test.cmd`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
