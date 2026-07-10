@@ -129,6 +129,7 @@ public:
     void patchNext();               // step the factory sound forward (controlType dispatch)
     void patchPrev();               // step the factory sound backward
     void patchStep (int delta);     // shared: resolve controlType of the loaded synth and dispatch
+    int pendingProgram() const noexcept { return pendingPc.load(); }   // test observer: queued PC program (-1 = none)
 
     // Keep-on-top mode: none, this (the Custos editor window), or the inner-synth window.
     void setOnTopMode (OnTopMode mode);
@@ -224,6 +225,9 @@ private:
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9
     void releasePendingInject();                  // release any held PARAM inject on the CURRENT inner (reuse/swap-safe)
+
+    int pcProgram = 0;                              // last program sent (0..127); message thread only
+    std::atomic<int> pendingPc { -1 };              // program queued for the next processBlock (-1 = none)
 
     // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
     // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.

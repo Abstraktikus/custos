@@ -72,3 +72,24 @@ TEST_CASE ("PARAM patchStep with an out-of-range index is a no-op")
                               f.controlType="PARAM"; f.paramDown=0; f.paramUp=9; return f; }() });
     REQUIRE_NOTHROW (proc.patchNext());   // index 9 >= 2 params -> no-op, no crash
 }
+
+TEST_CASE ("PC patchStep queues a wrapping program change that processBlock injects")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CustosProcessor proc;
+    auto fake = std::make_unique<FakeInnerProcessor> (2);
+    auto* fakePtr = fake.get();
+    proc.prepareToPlay (48000.0, 64);
+    proc.loadInner (std::move (fake), "C:/Korg.vst3");
+    proc.setFavorites ({ [] { custos::Favorite f; f.name="Korg"; f.path="C:/Korg.vst3"; f.favOrder=1;
+                              f.controlType="PC"; return f; }() });
+
+    proc.patchNext();                       // program 0 -> 1
+    REQUIRE (proc.pendingProgram() == 1);
+
+    juce::AudioBuffer<float> buf (2, 64);
+    juce::MidiBuffer midi;
+    proc.processBlock (buf, midi);          // injects the queued PC into the inner
+    REQUIRE (proc.pendingProgram() == -1);  // consumed
+    REQUIRE (fakePtr->lastNumMidi >= 1);    // the inner saw a MIDI event
+}

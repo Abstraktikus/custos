@@ -351,6 +351,10 @@ void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     for (int i = 0; i < 16; ++i) snap[(size_t) i] = midiRoute[(size_t) i].load (std::memory_order_relaxed);
     applyMidiRoute (midi, snap, routeScratch);
 
+    const int pc = pendingPc.exchange (-1);
+    if (pc >= 0)
+        midi.addEvent (juce::MidiMessage::programChange (1, pc), 0);
+
     const int n = buffer.getNumSamples();
     {
         const juce::SpinLock::ScopedTryLockType tl (swapLock);
@@ -594,7 +598,11 @@ void CustosProcessor::releasePendingInject()
     patchInjectIndex = -1;
 }
 
-void CustosProcessor::patchSendProgramChange (int) {}   // Task 9 fills this in
+void CustosProcessor::patchSendProgramChange (int delta)
+{
+    pcProgram = ((pcProgram + delta) % 128 + 128) % 128;   // wrap 0..127
+    pendingPc.store (pcProgram);
+}
 
 bool CustosProcessor::loadInFlight() const noexcept { return browseDebounce.isTimerRunning(); }
 
