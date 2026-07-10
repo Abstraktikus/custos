@@ -60,3 +60,25 @@ TEST_CASE ("legacy Favorite JSON without controlType defaults to PRESET")
     REQUIRE (out[0].paramDown == 0);
     REQUIRE (out[0].paramUp  == 0);
 }
+
+TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file")
+{
+    auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                   .getChildFile ("custos_migtest");
+    tmp.createDirectory();
+    auto legacy = tmp.getChildFile ("favorites.json");
+    auto neu    = tmp.getChildFile ("instruments.json");
+    legacy.deleteFile(); neu.deleteFile();
+
+    custos::writeFavorites (legacy, { { "L", "C:/l.vst3", 1, 0.0f } });
+    auto migrated = custos::readInstruments (neu, legacy);   // new absent -> read legacy
+    REQUIRE (migrated.size() == 1);
+    REQUIRE (migrated[0].name == "L");
+
+    custos::writeFavorites (neu, { { "N", "C:/n.vst3", 1, 0.0f } });
+    auto fresh = custos::readInstruments (neu, legacy);      // new present -> ignore legacy
+    REQUIRE (fresh.size() == 1);
+    REQUIRE (fresh[0].name == "N");
+
+    legacy.deleteFile(); neu.deleteFile(); tmp.deleteRecursively();
+}

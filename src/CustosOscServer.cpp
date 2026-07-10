@@ -174,7 +174,7 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
         }
         maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
-    proc.setFavorites (readFavorites (favoritesConfigFile()));   // boot-load the shared machine config
+    proc.setFavorites (readInstruments (instrumentsConfigFile(), favoritesConfigFile()));  // new, else migrate legacy
 }
 
 CustosOscServer::~CustosOscServer()
@@ -280,7 +280,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::FavEnd:
             proc.favoritesEnd();
-            writeFavorites (favoritesConfigFile(), proc.getFavorites());   // shared machine config
+            writeFavorites (instrumentsConfigFile(), proc.getFavorites());   // shared machine config
             break;
         case Command::WindowShow:
             proc.showSynthWindow();

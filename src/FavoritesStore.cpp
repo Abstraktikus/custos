@@ -61,4 +61,17 @@ std::vector<Favorite> readFavorites (const juce::File& file)
     if (! file.existsAsFile()) return {};
     return favoritesFromJson (file.loadFileAsString());
 }
+
+juce::File instrumentsConfigFile()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+              .getChildFile ("Custos").getChildFile ("instruments.json");
+}
+
+std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::File& legacyFile)
+{
+    if (newFile.existsAsFile())    return readFavorites (newFile);
+    if (legacyFile.existsAsFile()) return readFavorites (legacyFile);   // one-time migration read
+    return {};
+}
 }
