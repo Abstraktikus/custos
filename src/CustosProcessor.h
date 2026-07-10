@@ -154,7 +154,7 @@ public:
     // Prev/Next favourite browsing over OSC (message thread). Flipping reports only the NAME + arms a
     // 400 ms debounce; when flipping stops the debounce loads the cursor's synth (de-duped vs the loaded
     // one). delta = +1 (next) / -1 (prev); setBrowseIndex jumps to a specific index.
-    void browseInstrument (int delta);
+    void browseInstrument (int delta, int scope = 0);
     void setBrowseIndex (int i);
 
 protected:

@@ -213,7 +213,7 @@ void CustosProcessor::traceN (const juce::String& msg) const
     trace ("N" + juce::String (identityN) + "  " + msg);
 }
 
-void CustosProcessor::browseInstrument (int delta)
+void CustosProcessor::browseInstrument (int delta, int scope)
 {
     const int cnt = (int) favorites.size();
     if (cnt == 0) return;
@@ -226,7 +226,8 @@ void CustosProcessor::browseInstrument (int delta)
         const auto step = browseStep (idx, delta, cnt);
         idx = step.index;
         wrapped = wrapped || step.wrapped;
-        if (favouriteFits (favorites[(size_t) idx].slots, cap)) break;
+        if (favouriteFits (favorites[(size_t) idx].slots, cap)
+            && favouriteInScope (favorites[(size_t) idx].favOrder, scope)) break;
     }
     browseIndex = idx;
     const auto& f = favorites[(size_t) browseIndex];

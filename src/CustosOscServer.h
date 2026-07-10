@@ -25,6 +25,7 @@ struct Command
     std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
     juce::String presetName, presetNewName, rootPath;   // preset verbs
     int presetIndex = -1;                               // PresetSet, or PresetLoad-by-index
+    int scope = 0;              // BrowseNext/Prev: 0 = favourites, 1 = all
 };
 
 // Pure dispatch: map an OSC message to a Command (no side effects) — unit-testable without a socket.

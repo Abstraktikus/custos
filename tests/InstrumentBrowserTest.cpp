@@ -45,3 +45,11 @@ TEST_CASE ("favouriteFits: unknown (0) always fits; else slots <= facadeCap")
     REQUIRE (favouriteFits (4000, 1000) == false);   // 4000-param synth in a Custos 1000 -> skip
     REQUIRE (favouriteFits (4000, 10000) == true);   // fits the big rung
 }
+
+TEST_CASE ("favouriteInScope: scope 0 = favourites only, scope 1 = all")
+{
+    REQUIRE (custos::favouriteInScope (1, 0) == true);    // fav, fav-scope
+    REQUIRE (custos::favouriteInScope (0, 0) == false);   // non-fav, fav-scope
+    REQUIRE (custos::favouriteInScope (0, 1) == true);    // non-fav, all-scope
+    REQUIRE (custos::favouriteInScope (5, 1) == true);
+}

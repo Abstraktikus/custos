@@ -99,6 +99,15 @@ TEST_CASE ("parseCommand maps /custos/instrument/next and /prev")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/prev")).kind == Command::BrowsePrev);
 }
 
+TEST_CASE ("parseCommand reads optional scope on /custos/instrument/next|prev")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/instrument/next")).scope == 0);      // default
+    juce::OSCMessage all ("/custos/instrument/next"); all.addInt32 (1);
+    const auto c = parseCommand (all);
+    REQUIRE (c.kind == Command::BrowseNext);
+    REQUIRE (c.scope == 1);
+}
+
 TEST_CASE ("parseCommand maps /custos/instrument/set with an index")
 {
     juce::OSCMessage msg ("/custos/instrument/set", (juce::int32) 4);

@@ -9,6 +9,9 @@ namespace custos
 // A Custos 1000 must not browse/load a 4000-param synth (its top params would be unbindable).
 inline bool favouriteFits (int slots, int facadeCap) { return slots <= 0 || slots <= facadeCap; }
 
+// Browse-scope predicate. scope 0 = favourites only (favOrder >= 1); scope 1 = all instruments.
+inline bool favouriteInScope (int favOrder, int scope) { return scope != 0 || favOrder >= 1; }
+
 struct BrowseStep { int index; bool wrapped; };
 
 inline BrowseStep browseStep (int cur, int delta, int count)

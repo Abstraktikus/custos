@@ -128,10 +128,12 @@ Command parseCommand (const juce::OSCMessage& msg)
     }
     if (addr == "/custos/midi/query")
         return { Command::MidiQuery, {} };
-    if (addr == "/custos/instrument/next")
-        return { Command::BrowseNext, {} };
-    if (addr == "/custos/instrument/prev")
-        return { Command::BrowsePrev, {} };
+    if (addr == "/custos/instrument/next" || addr == "/custos/instrument/prev")
+    {
+        Command c; c.kind = (addr.endsWith ("next")) ? Command::BrowseNext : Command::BrowsePrev;
+        if (msg.size() >= 1 && msg[0].isInt32()) c.scope = msg[0].getInt32();
+        return c;
+    }
     if (addr == "/custos/instrument/set")
     {
         if (msg.size() >= 1 && msg[0].isInt32())
@@ -308,10 +310,10 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         }
         case Command::BrowseNext:
-            proc.browseInstrument (+1);
+            proc.browseInstrument (+1, cmd.scope);
             break;
         case Command::BrowsePrev:
-            proc.browseInstrument (-1);
+            proc.browseInstrument (-1, cmd.scope);
             break;
         case Command::BrowseSet:
             proc.setBrowseIndex (cmd.count);
