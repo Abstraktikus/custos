@@ -80,5 +80,8 @@ TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file"
     REQUIRE (fresh.size() == 1);
     REQUIRE (fresh[0].name == "N");
 
+    legacy.deleteFile(); neu.deleteFile();
+    REQUIRE (custos::readInstruments (neu, legacy).empty());   // neither present -> empty
+
     legacy.deleteFile(); neu.deleteFile(); tmp.deleteRecursively();
 }
