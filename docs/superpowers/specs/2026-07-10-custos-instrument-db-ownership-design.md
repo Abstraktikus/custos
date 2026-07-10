@@ -66,9 +66,10 @@ name · path · favOrder · gainDb · brand · slots · controlType · paramDown
 ```
 
 - `favOrder`: `0` = known-but-not-a-favourite, `≥1` = favourite rank (sort key).
-- `gainDb`: per-instrument trim — now applies to **every** synth on load, not only favourites
-  (today `applyVolumeDefault` gives non-favourites unity 0 dB; with the full list every known
-  synth carries its trim).
+- `gainDb`: per-instrument **base** trim — applies to **every** synth on load, not only
+  favourites (today `applyVolumeDefault` gives non-favourites unity 0 dB; with the full list
+  every known synth carries its trim). **Authored and written solely by KM** (calibration is
+  configuration — see §6a). GP never writes it.
 - `controlType` ∈ `PARAM | PC | PRESET | NONE`; `paramDown` / `paramUp` are the inject indices
   for `PARAM`. New fields — KM supplies them.
 - `slots`: inner param count; browsing/loading skips synths whose `slots > facadeCap`
@@ -103,6 +104,8 @@ config + `refreshEditor`).
   control. `/custos/load <path>` remains for KM's direct path loads.
 - Existing `/custos/instrument/next|prev|set` gain an **optional** `scope` int (default `0`) so
   the change is backward-compatible with the v2 contract.
+- Trim uses the **existing** `/custos/volume <gainDb>` (no new verb): KM/GP deliver an override
+  that outranks the list base (§6a).
 
 **Feedback (Custos → KM/GP, mirrored to GP `:54344` where noted):**
 
@@ -131,6 +134,27 @@ declared, else `PRESET`. The Preset axis always cycles snapshots regardless.
 Name feedback: authoritative for Preset snapshots; best-effort for native `PARAM`/`PC` (the
 synth owns its patch pointer — Custos often cannot read the name). Accepted trade-off.
 
+## 6a. Trim — authoring is configuration (KM), not runtime (GP)
+
+Trim is **configuration**, so by definition it belongs to KM. Deliberately *not* in this design:
+the whole trim-**authoring** loop (measuring a clip-free ceiling, computing a trim, deduping
+duplicate synths by min). Today GP owns it via the `BTN_AutoGainCalibration` watchdog workflow;
+that moves to KM entirely — how KM authors it is KM's concern.
+
+The runtime split:
+
+- **Base trim** lives in Custos's instrument list (`gainDb`), written only by KM, applied on
+  load (`applyVolumeDefault`).
+- **Per-song override** (a value that deviates from the base for one song) is the **only** trim
+  role GP keeps: GP reads it from `Song.ini` and pushes it via the existing `/custos/volume
+  <gainDb>` verb after load.
+- **Precedence:** a delivered `/custos/volume` override **always outranks** the list `gainDb`.
+  No override for a song → the list base stands.
+
+Note (plan-time boundary): the live **overload watchdog** that attenuates in real time is a
+*playing-time safety* feature, not trim authoring — the removal in §7 targets the
+*write/calibration* path, not runtime attenuation. Confirm the exact cut in the plan.
+
 ## 7. GP-Script side
 
 ### Added — macro catalogue (single-step only)
@@ -149,7 +173,10 @@ to *provide* the macros.
 ### Removed — `VstDatabase.txt` read + native engine
 
 - Whole `.txt` pipeline: `LoadVstDatabase`, all `DB_*` arrays, `GetPathForVst`,
-  `RefreshVstTrims`, `VstDatabaseFilePath`, and the GP→KM trim push.
+  `RefreshVstTrims`, `VstDatabaseFilePath`.
+- **Trim authoring/write path** (configuration → KM): the `BTN_AutoGainCalibration` workflow,
+  its `DB_Trim` writes + min-dedup, `PushVstTrimsToKM`, `VstTrimsDirty`/`CalibrationActive`
+  state. Trim is no longer authored in GP (see §6a; watchdog-attenuation boundary noted there).
 - Native stepping engine: `TriggerVstPresetChange`, `CyclePluginPreset`, `FullDeflectVoice`.
 - `_LIBR` / `_INST` remnants: `LibCyclePrefix`, `LoadRigConfig`, `BuildPresetSublist`,
   `MovePreset`, and the `RigConfig.txt` path. **The library/instrument-cycle concept is dropped
@@ -158,7 +185,10 @@ to *provide* the macros.
 ### Kept in GP
 
 - Reading `Song.ini` → per slot `songVstName` → `/custos/instrument/load <name>`. GP stays dumb:
-  it forwards the string it read; Custos resolves and applies trim.
+  it forwards the string it read; Custos resolves name→path and applies the base `gainDb`.
+- Reading a **per-song trim override** from `Song.ini` (only when it deviates from the base) →
+  `/custos/volume <gainDb>` after load. This is GP's *only* remaining trim role (§6a). No
+  override present → GP sends nothing and the list base stands.
 
 ### Bonus
 
@@ -188,11 +218,13 @@ regression): first configuration always needs KM, which the rule already accepts
 ## 10. Responsibilities
 
 - **Custos:** the full instrument store + migration; the verbs in §5; `controlType` dispatch in
-  §6; per-instrument trim on load for all entries; the new `/custos/patch/stepped` feedback.
-- **KM:** populate the full DB (incl. `controlType`/`paramDown`/`paramUp`); bind macros to the
-  joystick.
-- **GP-Script:** provide the macro catalogue; delete the `.txt` pipeline, native engine, and
-  `_LIBR`/`_INST`; forward `Song.ini` names via `/custos/instrument/load`.
+  §6; base `gainDb` on load; **override precedence** (`/custos/volume` outranks list `gainDb`);
+  the new `/custos/patch/stepped` feedback.
+- **KM:** populate the full DB (incl. `controlType`/`paramDown`/`paramUp` **and base `gainDb`**);
+  **author trim** (calibration is configuration); bind macros to the joystick.
+- **GP-Script:** provide the macro catalogue; delete the `.txt` pipeline, native engine, trim
+  authoring, and `_LIBR`/`_INST`; forward `Song.ini` names via `/custos/instrument/load` and
+  per-song trim overrides via `/custos/volume`.
 
 ## 11. Open items for the plan
 
