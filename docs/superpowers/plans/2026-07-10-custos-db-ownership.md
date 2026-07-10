@@ -6,7 +6,7 @@
 
 **Architecture:** Extend the existing favourites store into a full instrument list carrying preset-stepping metadata (`controlType`/`paramDown`/`paramUp`), add stateless scope to instrument browsing, add load-by-name, and add a Patch axis that dispatches by `controlType` (PARAM param-inject / PC program-change / PRESET-store fallback). All new wire verbs extend the v2 contract back-compatibly.
 
-**Tech Stack:** C++17, JUCE 8, Catch2, CMake+Ninja (MSVC). Build: `scripts\build.cmd custos_tests Custos`. Test: `scripts\test.cmd` (ctest). Filter one Catch2 case: `build\Custos_artefacts\...\custos_tests.exe "<test name>"`.
+**Tech Stack:** C++17, JUCE 8, Catch2, CMake+Ninja (MSVC). Build: `scripts\build.cmd custos_tests Custos` (self-sets-up MSVC via `_vsenv.cmd`; run from `c:\dev\custos`). Test suite: `scripts\test.cmd` (ctest). Filter one Catch2 case: `build\tests\custos_tests.exe "<test name>"` (Ninja single-config — no `Debug/` subfolder).
 
 ## Global Constraints
 
@@ -63,7 +63,7 @@ TEST_CASE ("legacy Favorite JSON without controlType defaults to PRESET")
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "Favorite round-trips controlType / paramDown / paramUp"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "Favorite round-trips controlType / paramDown / paramUp"`
 Expected: FAIL — `controlType`/`paramDown`/`paramUp` are not members of `Favorite`.
 
 - [ ] **Step 3: Add the struct fields**
@@ -97,7 +97,7 @@ In `favoritesFromJson`, after `f.slots = (int) v.getProperty ("slots", 0);` add:
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "[.]Favorite*"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "[.]Favorite*"`
 Expected: PASS (both new cases + existing FavoritesStore cases).
 
 - [ ] **Step 6: Commit**
@@ -150,7 +150,7 @@ TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file"
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "readInstruments prefers the new file, else migrates the legacy file"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "readInstruments prefers the new file, else migrates the legacy file"`
 Expected: FAIL — `instrumentsConfigFile`/`readInstruments` undeclared.
 
 - [ ] **Step 3: Declare the new helpers**
@@ -257,7 +257,7 @@ TEST_CASE ("parseCommand keeps v2 /custos/favorite (5 args) working")
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand reads controlType/paramDown/paramUp on /custos/favorite"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand reads controlType/paramDown/paramUp on /custos/favorite"`
 Expected: FAIL — `c.fav.controlType` is the default, not "PARAM".
 
 - [ ] **Step 3: Extend the parser**
@@ -275,7 +275,7 @@ In `src/CustosOscServer.cpp`, in `parseCommand`, inside the `/custos/favorite` b
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "[.]parseCommand*favorite*"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "[.]parseCommand*favorite*"`
 Expected: PASS (both new cases).
 
 - [ ] **Step 5: Commit**
@@ -315,7 +315,7 @@ TEST_CASE ("favouriteInScope: scope 0 = favourites only, scope 1 = all")
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "favouriteInScope: scope 0 = favourites only, scope 1 = all"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "favouriteInScope: scope 0 = favourites only, scope 1 = all"`
 Expected: FAIL — `favouriteInScope` undeclared.
 
 - [ ] **Step 3: Add the pure predicate**
@@ -329,7 +329,7 @@ inline bool favouriteInScope (int favOrder, int scope) { return scope != 0 || fa
 
 - [ ] **Step 4: Run the predicate test — PASS**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "favouriteInScope: scope 0 = favourites only, scope 1 = all"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "favouriteInScope: scope 0 = favourites only, scope 1 = all"`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing parse test**
@@ -349,7 +349,7 @@ TEST_CASE ("parseCommand reads optional scope on /custos/instrument/next|prev")
 
 - [ ] **Step 6: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand reads optional scope on /custos/instrument/next|prev"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand reads optional scope on /custos/instrument/next|prev"`
 Expected: FAIL — `Command` has no `scope` member.
 
 - [ ] **Step 7: Add `scope` to Command and parse it**
@@ -446,7 +446,7 @@ TEST_CASE ("parseCommand maps /custos/instrument/load with a name")
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand maps /custos/instrument/load with a name"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand maps /custos/instrument/load with a name"`
 Expected: FAIL — `Command::InstrumentLoad` undeclared.
 
 - [ ] **Step 3: Add the command kind and parse rule**
@@ -466,7 +466,7 @@ In `src/CustosOscServer.cpp`, `parseCommand`, after the `/custos/instrument/set`
 
 - [ ] **Step 4: Run the parse test — PASS**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand maps /custos/instrument/load with a name"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand maps /custos/instrument/load with a name"`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing processor test**
@@ -499,7 +499,7 @@ Register it in `tests/CMakeLists.txt` (add `InstrumentLoadTest.cpp` to the test-
 
 - [ ] **Step 6: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "loadByName resolves a list entry's path; unknown name is a no-op"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "loadByName resolves a list entry's path; unknown name is a no-op"`
 Expected: FAIL — `loadByName` undeclared.
 
 - [ ] **Step 7: Implement `loadByName`**
@@ -582,7 +582,7 @@ Register `PatchStepTest.cpp` in `tests/CMakeLists.txt`.
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "patchMethodFor: PARAM/PC native, everything else falls back to Preset"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "patchMethodFor: PARAM/PC native, everything else falls back to Preset"`
 Expected: FAIL — `PatchMethod`/`patchMethodFor` undeclared.
 
 - [ ] **Step 3: Add the helper**
@@ -604,7 +604,7 @@ inline PatchMethod patchMethodFor (const juce::String& controlType)
 
 - [ ] **Step 4: Run the test — PASS**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "patchMethodFor: PARAM/PC native, everything else falls back to Preset"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "patchMethodFor: PARAM/PC native, everything else falls back to Preset"`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -642,7 +642,7 @@ TEST_CASE ("parseCommand maps /custos/patch/next and /custos/patch/prev")
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand maps /custos/patch/next and /custos/patch/prev"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand maps /custos/patch/next and /custos/patch/prev"`
 Expected: FAIL — `Command::PatchNext` undeclared.
 
 - [ ] **Step 3: Add command kinds + parse rules**
@@ -658,7 +658,7 @@ In `src/CustosOscServer.cpp`, `parseCommand`, after the `/custos/instrument/load
 
 - [ ] **Step 4: Run the parse test — PASS**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "parseCommand maps /custos/patch/next and /custos/patch/prev"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "parseCommand maps /custos/patch/next and /custos/patch/prev"`
 Expected: PASS.
 
 - [ ] **Step 5: Write the failing fallback behaviour test**
@@ -684,7 +684,7 @@ TEST_CASE ("patchStep on a PRESET/unknown synth falls back to the preset cursor"
 
 - [ ] **Step 6: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "patchStep on a PRESET/unknown synth falls back to the preset cursor"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "patchStep on a PRESET/unknown synth falls back to the preset cursor"`
 Expected: FAIL — `patchNext`/`patchPrev` undeclared.
 
 - [ ] **Step 7: Implement patch dispatch (Param/Pc branches are stubs until Tasks 8–9)**
@@ -809,7 +809,7 @@ TEST_CASE ("PARAM patchStep with an out-of-range index is a no-op")
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "PARAM patchStep injects 1.0 into the paramUp/paramDown index"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "PARAM patchStep injects 1.0 into the paramUp/paramDown index"`
 Expected: FAIL — parameter stays at its default (stub is a no-op).
 
 - [ ] **Step 3: Implement the inject + reset timer**
@@ -844,7 +844,7 @@ void CustosProcessor::patchInjectParam (int paramIndex)
 
 - [ ] **Step 4: Run the tests — PASS**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "[.]PARAM patchStep*"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "[.]PARAM patchStep*"`
 Expected: PASS (the 1.0 set is synchronous; the 150 ms release is verified in the live E2E harness, not here).
 
 - [ ] **Step 5: Commit**
@@ -894,7 +894,7 @@ TEST_CASE ("PC patchStep queues a wrapping program change that processBlock inje
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "PC patchStep queues a wrapping program change that processBlock injects"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "PC patchStep queues a wrapping program change that processBlock injects"`
 Expected: FAIL — `pendingProgram` undeclared / program not injected.
 
 - [ ] **Step 3: Add the atomic queue + counter**
@@ -979,7 +979,7 @@ TEST_CASE ("gpMirrorsFeedback mirrors /custos/patch/stepped")
 
 - [ ] **Step 2: Run them to verify they fail**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "buildPatchStepped carries n, controlType, detail"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "buildPatchStepped carries n, controlType, detail"`
 Expected: FAIL — `buildPatchStepped` undeclared.
 
 - [ ] **Step 3: Add the builder + mirror rule**
@@ -1078,7 +1078,7 @@ TEST_CASE ("proto version is 3")
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `scripts\build.cmd custos_tests && build\Custos_artefacts\Debug\custos_tests.exe "proto version is 3"`
+Run: `scripts\build.cmd custos_tests && build\tests\custos_tests.exe "proto version is 3"`
 Expected: FAIL — `kProtoVersion` is still 2.
 
 - [ ] **Step 3: Bump the version**
