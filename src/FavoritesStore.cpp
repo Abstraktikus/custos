@@ -105,4 +105,16 @@ InstrumentsSource resolveInstrumentsSource (const juce::File& root,
     if (legacyOld.existsAsFile())       return { legacyOld, true, true };
     return { rootValid ? instrumentsFileIn (root) : legacyCanonical, false, false };
 }
+
+std::vector<Favorite> loadInstrumentsWithSelfHeal (const juce::File& root,
+                                                   const juce::File& legacyCanonical,
+                                                   const juce::File& legacyOld)
+{
+    const auto src = resolveInstrumentsSource (root, legacyCanonical, legacyOld);
+    if (! src.found) return {};
+    auto favs = readFavorites (src.file);
+    if (src.fromLegacy && root.getFullPathName().isNotEmpty() && ! favs.empty())
+        writeInstruments (root, favs);      // self-heal seed into the backup-friendly root
+    return favs;
+}
 }

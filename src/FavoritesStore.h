@@ -32,4 +32,10 @@ struct InstrumentsSource { juce::File file; bool fromLegacy = false; bool found 
 InstrumentsSource resolveInstrumentsSource (const juce::File& root,
                                             const juce::File& legacyCanonical,
                                             const juce::File& legacyOld);
+
+// Load favourites for a data root: resolve (root > legacy canonical > legacy old), read, and if the
+// data came from a legacy tier while root is non-empty, seed <root>/instruments.json once. Idempotent.
+std::vector<Favorite> loadInstrumentsWithSelfHeal (const juce::File& root,
+                                                   const juce::File& legacyCanonical,
+                                                   const juce::File& legacyOld);
 }

@@ -173,3 +173,39 @@ TEST_CASE ("resolveInstrumentsSource honours tier order root > canonical > old")
 
     dir.deleteRecursively();
 }
+
+TEST_CASE ("loadInstrumentsWithSelfHeal seeds the root from a legacy file, once")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto rootF = root.getChildFile ("instruments.json");
+    auto canon = dir.getChildFile ("instruments.json");
+    auto old   = dir.getChildFile ("favorites.json");
+
+    writeFavorites (canon, { { "Legacy", "C:/l.vst3", 1, 0.0f } });
+    REQUIRE_FALSE (rootF.existsAsFile());
+
+    // Legacy read -> data returned AND seeded into the root.
+    auto favs = loadInstrumentsWithSelfHeal (root, canon, old);
+    REQUIRE (favs.size() == 1);
+    REQUIRE (favs[0].name == "Legacy");
+    REQUIRE (rootF.existsAsFile());                 // self-heal wrote it
+
+    // Second call reads tier 1 and does not touch legacy; still correct.
+    auto again = loadInstrumentsWithSelfHeal (root, canon, old);
+    REQUIRE (again.size() == 1);
+    REQUIRE (again[0].name == "Legacy");
+
+    dir.deleteRecursively();
+}
+
+TEST_CASE ("loadInstrumentsWithSelfHeal returns empty and seeds nothing when no source exists")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto favs = loadInstrumentsWithSelfHeal (root, dir.getChildFile ("instruments.json"),
+                                                   dir.getChildFile ("favorites.json"));
+    REQUIRE (favs.empty());
+    REQUIRE_FALSE (root.getChildFile ("instruments.json").existsAsFile());   // no seed from nothing
+    dir.deleteRecursively();
+}
