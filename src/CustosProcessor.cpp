@@ -746,6 +746,8 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
         }
         else if (avail.getWidth() > 0 && avail.getHeight() > 0)
             logical = avail;
+        // If the margin over-reduces the area to <=0 (infeasible fit), we intentionally leave `logical`
+        // as the raw physical->logical rect rather than a zero/negative-size window.
     }
     else if (clamp)   // config phase: keep the window inside the target display's work area (borders stay reachable)
     {
