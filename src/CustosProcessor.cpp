@@ -56,6 +56,7 @@ CustosProcessor::CustosProcessor (bool enableOsc)
 
 CustosProcessor::~CustosProcessor()
 {
+    if (inner != nullptr) inner->removeListener (this);   // defensive: don't rely on member-destruction order
     oscServer.reset();                  // stop OSC callbacks before tearing down the rest
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     titledWindow.reset();               // same for the titled window
@@ -419,9 +420,13 @@ void CustosProcessor::drainLearn()
 
 void CustosProcessor::audioProcessorParameterChanged (juce::AudioProcessor*, int index, float newValue)
 {
-    // Per-value moves are only interesting while a Learn window is open; learnRecord self-gates and
-    // is RT-safe (enqueue only). The parameterInfoChanged re-bind path stays in audioProcessorChanged.
-    learnRecord (index, newValue);
+    // Learn captures only MESSAGE-THREAD parameter moves — the operator turning a knob in the synth's
+    // editor. Audio-thread-originated changes (host automation / internal LFO modulation during
+    // processBlock) are intentionally ignored: the design treats internal modulation as noise, and this
+    // keeps the single-producer/single-consumer learnFifo touched from one thread only (the message
+    // thread, same as drainLearn). learnRecord still self-gates on learnActive.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        learnRecord (index, newValue);
 }
 
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
