@@ -15,7 +15,7 @@ The hook already exists and is deliberately empty: `CustosProcessor::audioProces
 - **Live display of a moving macro (Fall 1).** When a macro drives a facade param from outside, KM already knows the *value* (it sent it) and the *name* (from the `/custos/param` dump taken at load, F1). No Custos feedback is required for display. This spec is only about the **Learn** gesture.
 - **No source attribution.** Custos does not try to distinguish "user turned this knob" from "an internal LFO moved it." The **1–2 s window** is the mitigation: outside the window Custos reports nothing; inside it, KM takes what moved (and normally the operator is deliberately moving exactly one knob). Accepted trade-off: an LFO running during a Learn window can produce noise events; KM's "largest movement wins" heuristic and the operator's deliberate sweep handle the common case.
 - **No GP mirror.** `learn/*` is KM-authoring traffic and stays hub-only (`:8000`), like `preset/saved` — it is not mirrored to GP `:54344`.
-- **No protoVer bump.** `/custos/here` is unchanged; the verbs are purely additive. `kProtoVersion` stays 2. KM feature-detects behaviourally (send `learn/start`, receive `learn/started` or time out).
+- **No protoVer bump.** `/custos/here` is unchanged; the verbs are purely additive. `kProtoVersion` stays at its current value (**3**). KM feature-detects behaviourally (send `learn/start`, receive `learn/started` or time out).
 
 ## Data flow
 
@@ -38,7 +38,7 @@ KM  --/custos/learn/stop N----->   |  (or safety timeout ~10 s)
 
 KM accumulates the stream and decides: winning `facadeIdx` = largest span (or a user pick from a candidate list); `min`/`max` = smallest/largest `val` seen for that index across the sweep. Custos performs no winner selection.
 
-## Contract additions (protoVer stays 2)
+## Contract additions (protoVer unchanged, currently 3)
 
 ### KM → Custos (send to `127.0.0.1:BASE+N`)
 
@@ -89,7 +89,7 @@ KM accumulates the stream and decides: winning `facadeIdx` = largest span (or a 
 - **`CustosOscServer.cpp`** — parse `/custos/learn/start` → `{ Command::LearnStart }` and `/custos/learn/stop` → `{ Command::LearnStop }`; handlers call `proc.startLearn()` / `proc.stopLearn("stop")`. Learn addresses are **not** added to `gpMirrorsFeedback` (hub-only).
 - **`docs/osc-contract.md`** — new inbound rows (§2), new feedback rows (§3), and a short "Learn" subsection describing the windowed capture model and the KM-side winner/Min-Max derivation.
 
-No state-format change (Learn is transient, nothing persists). No editor change. `kProtoVersion` unchanged.
+No state-format change (Learn is transient, nothing persists). No editor change. `kProtoVersion` unchanged (currently 3).
 
 ## Testing
 
