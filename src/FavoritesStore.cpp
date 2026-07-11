@@ -68,6 +68,24 @@ juce::File instrumentsConfigFile()
               .getChildFile ("Custos").getChildFile ("instruments.json");
 }
 
+juce::File instrumentsFileIn (const juce::File& root)
+{
+    return root.getChildFile ("instruments.json");
+}
+
+juce::File instrumentsTargetFor (const juce::File& root)
+{
+    return root.getFullPathName().isNotEmpty() ? instrumentsFileIn (root)
+                                               : instrumentsConfigFile();
+}
+
+bool writeInstruments (const juce::File& root, const std::vector<Favorite>& favs)
+{
+    auto target = instrumentsTargetFor (root);
+    writeFavorites (target, favs);            // creates parent dir, replaces file
+    return target.existsAsFile();
+}
+
 std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::File& legacyFile)
 {
     if (newFile.existsAsFile())    return readFavorites (newFile);

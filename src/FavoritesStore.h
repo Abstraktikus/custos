@@ -18,4 +18,9 @@ std::vector<Favorite> readFavorites (const juce::File& file);                 //
 
 juce::File instrumentsConfigFile();                                          // %APPDATA%/Custos/instruments.json
 std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::File& legacyFile); // new, else migrate legacy
+
+// Root-aware instrument-DB location (unified data root).
+juce::File instrumentsFileIn   (const juce::File& root);           // <root>/instruments.json
+juce::File instrumentsTargetFor (const juce::File& root);          // <root>/... or legacy %APPDATA% if root empty
+bool       writeInstruments    (const juce::File& root, const std::vector<Favorite>& favs);
 }

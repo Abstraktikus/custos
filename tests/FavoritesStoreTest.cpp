@@ -85,3 +85,28 @@ TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file"
 
     legacy.deleteFile(); neu.deleteFile(); tmp.deleteRecursively();
 }
+
+TEST_CASE ("instrumentsFileIn / instrumentsTargetFor pick the right file")
+{
+    juce::File root ("C:/backup/Custos");
+    REQUIRE (instrumentsFileIn (root).getFullPathName()
+             == juce::File ("C:/backup/Custos/instruments.json").getFullPathName());
+
+    // Non-empty root -> under the root.
+    REQUIRE (instrumentsTargetFor (root) == instrumentsFileIn (root));
+
+    // Empty/invalid root -> legacy %APPDATA% canonical file.
+    REQUIRE (instrumentsTargetFor (juce::File()) == instrumentsConfigFile());
+}
+
+TEST_CASE ("writeInstruments lands at <root>/instruments.json")
+{
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    REQUIRE (writeInstruments (root, { { "Zebra2", "C:/x/Zebra2.vst3", 1, 0.0f, "u-he" } }));
+    auto target = root.getChildFile ("instruments.json");
+    REQUIRE (target.existsAsFile());
+    const auto back = readFavorites (target);
+    REQUIRE (back.size() == 1);
+    REQUIRE (back[0].name == "Zebra2");
+    root.deleteRecursively();
+}
