@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include "OscContract.h"
 #include "CustosOscServer.h"
 
 using namespace custos;
+using Catch::Approx;
 
 TEST_CASE ("oscPortForIdentity maps 1..15 to BASE+N and rejects the rest")
 {
@@ -231,4 +233,32 @@ TEST_CASE ("buildPatchStepped carries n, controlType, detail")
 TEST_CASE ("gpMirrorsFeedback mirrors /custos/patch/stepped")
 {
     REQUIRE (custos::gpMirrorsFeedback ("/custos/patch/stepped", {}) == true);
+}
+
+TEST_CASE ("buildLearnStarted carries N")
+{
+    const auto m = buildLearnStarted (7);
+    REQUIRE (m.getAddressPattern().toString() == "/custos/learn/started");
+    REQUIRE (m.size() == 1);
+    REQUIRE (m[0].getInt32() == 7);
+}
+
+TEST_CASE ("buildLearnMoved carries N, facadeIdx, value, name")
+{
+    const auto m = buildLearnMoved (7, 2373, 0.63f, "Filter Cutoff");
+    REQUIRE (m.getAddressPattern().toString() == "/custos/learn/moved");
+    REQUIRE (m.size() == 4);
+    REQUIRE (m[0].getInt32() == 7);
+    REQUIRE (m[1].getInt32() == 2373);
+    REQUIRE (m[2].getFloat32() == Approx (0.63f));
+    REQUIRE (m[3].getString() == "Filter Cutoff");
+}
+
+TEST_CASE ("buildLearnStopped carries N and reason")
+{
+    const auto m = buildLearnStopped (7, "timeout");
+    REQUIRE (m.getAddressPattern().toString() == "/custos/learn/stopped");
+    REQUIRE (m.size() == 2);
+    REQUIRE (m[0].getInt32() == 7);
+    REQUIRE (m[1].getString() == "timeout");
 }
