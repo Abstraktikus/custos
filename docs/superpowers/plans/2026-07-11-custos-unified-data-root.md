@@ -14,7 +14,7 @@
 - **protoVer stays 3** — changes are additive (one new verb + a relocated file); no wire-format change to existing messages.
 - **Backward compatible:** a Custos with no root configured (empty `presetRootPath`) must still read/write the legacy `%APPDATA%\Custos\instruments.json` and read `favorites.json`.
 - **One logical dataset:** `std::vector<custos::Favorite>` serialized as JSON. `instruments.json` is canonical; `favorites.json` is legacy read-only fallback.
-- **Build env:** MSVC not on PATH by default — load `vcvars64.bat` (see `reference-custos-build-env`), then `cmake --build C:/dev/custos/build --target custos_tests`. Ninja auto-reconfigures. Run tests: `C:/dev/custos/build/tests/custos_tests.exe "<Catch2 test name>"`.
+- **Build env (canonical — use these, NOT raw cmake):** cmake/ninja are NOT on PATH. Build the test target with the self-MSVC-setup wrapper from `c:\dev\custos`: `cmd //c "scripts\build.cmd custos_tests"` (Git Bash). Run one/prefix Catch2 case: `build\tests\custos_tests.exe "<name-or-prefix>"`. Full suite: `cmd //c "scripts\test.cmd"`. (The per-step `cmake --build ...` lines below are shorthand — always substitute `cmd //c "scripts\build.cmd custos_tests"`.)
 - **Tests are registered already:** new cases go into existing `tests/FavoritesStoreTest.cpp`, `tests/PresetProcessorTest.cpp`, `tests/OscCommandTest.cpp` — no `CMakeLists.txt` change.
 - **English** in all code, comments, commit messages, and docs.
 
