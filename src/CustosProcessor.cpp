@@ -420,16 +420,33 @@ bool CustosProcessor::restoreInnerState (const juce::MemoryBlock& state)
     return true;
 }
 
-void CustosProcessor::setPresetRoot (const juce::String& path)
+void CustosProcessor::emitPresetRoot()
 {
-    presetRootPath = path;
-    writePresetRoot (presetRootConfigFile(), path);
     if (outboundSink)
     {
         juce::OSCMessage m ("/custos/preset/root");
         m.addInt32 (identityN);
-        m.addString (path);
+        m.addString (presetRootPath);
         outboundSink (m);
+    }
+}
+
+void CustosProcessor::setPresetRoot (const juce::String& path)
+{
+    presetRootPath = path;
+    writePresetRoot (presetRootConfigFile(), path);
+    emitPresetRoot();
+
+    // The instrument/favourites DB follows the root: adopt what is already at the new location,
+    // otherwise carry the current in-memory favourites there so the operator never loses them.
+    juce::File newRoot (path);
+    if (newRoot.getFullPathName().isNotEmpty())
+    {
+        auto target = instrumentsFileIn (newRoot);
+        if (target.existsAsFile())
+            setFavorites (readFavorites (target));
+        else if (! favorites.empty())
+            writeInstruments (newRoot, favorites);
     }
 }
 

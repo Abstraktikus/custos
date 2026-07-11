@@ -190,7 +190,8 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
         }
         maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
-    proc.setFavorites (readInstruments (instrumentsConfigFile(), favoritesConfigFile()));  // new, else migrate legacy
+    proc.setFavorites (loadInstrumentsWithSelfHeal (juce::File (proc.presetRoot()),
+                                                    instrumentsConfigFile(), favoritesConfigFile()));
 }
 
 CustosOscServer::~CustosOscServer()
@@ -296,7 +297,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::FavEnd:
             proc.favoritesEnd();
-            writeFavorites (instrumentsConfigFile(), proc.getFavorites());   // shared machine config
+            writeInstruments (juce::File (proc.presetRoot()), proc.getFavorites());   // unified data root
             break;
         case Command::WindowShow:
             proc.showSynthWindow();

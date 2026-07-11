@@ -269,3 +269,50 @@ TEST_CASE ("recall during an in-flight synth load is buffered then applied after
 
     root.deleteRecursively();
 }
+
+TEST_CASE ("emitPresetRoot reports identity + current root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (6);
+    proc.setPresetRoot (root.getFullPathName());
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.emitPresetRoot();
+    REQUIRE (msgs.size() == 1);
+    REQUIRE (msgs[0].getAddressPattern().toString() == "/custos/preset/root");
+    REQUIRE ((int) msgs[0][0].getInt32() == 6);
+    REQUIRE (msgs[0][1].getString() == root.getFullPathName());
+    root.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot adopts an existing instruments.json at the new root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    custos::writeFavorites (root.getChildFile ("instruments.json"),
+                            { { "Adopted", "C:/a.vst3", 1, 0.0f } });
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());     // should adopt the file's favourites
+    REQUIRE (proc.getFavorites().size() == 1);
+    REQUIRE (proc.getFavorites()[0].name == "Adopted");
+    root.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot carries current favourites into an empty new root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setFavorites ({ { "Carried", "C:/c.vst3", 1, 0.0f } });
+    proc.setPresetRoot (root.getFullPathName());     // no file at root -> carry memory there
+    auto seeded = custos::readFavorites (root.getChildFile ("instruments.json"));
+    REQUIRE (seeded.size() == 1);
+    REQUIRE (seeded[0].name == "Carried");
+    root.deleteRecursively();
+}

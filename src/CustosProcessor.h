@@ -114,6 +114,7 @@ public:
     bool restoreInnerState (const juce::MemoryBlock& state);   // inner->setStateInformation; false if no inner
 
     void         setPresetRoot (const juce::String& path);     // persist (KM push-once) + remember
+    void         emitPresetRoot();                             // report /custos/preset/root (query + on set)
     juce::String presetRoot() const { return presetRootPath; }
     int  savePreset (const juce::String& name);                // sorted index, or -1 (no synth / empty name)
     std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
