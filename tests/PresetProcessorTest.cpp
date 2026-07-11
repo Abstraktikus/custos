@@ -363,3 +363,25 @@ TEST_CASE ("FavEnd-equivalent persistFavorites surfaces a failed write via prese
 
     tmp.deleteRecursively();
 }
+
+TEST_CASE ("setPresetRoot carry write surfaces a failure via preset/error instead of swallowing it")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");    // parent 'blocker' is a file -> mkdir + write must fail
+
+    CustosProcessor proc;
+    proc.setIdentity (8);
+    proc.setFavorites ({ { "Carried", "C:/c.vst3", 1, 0.0f } });   // non-empty in-memory favourites BEFORE the switch
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.setPresetRoot (root.getFullPathName());   // no file at unwritable root -> carry write, must not go silent
+
+    REQUIRE (std::any_of (msgs.begin(), msgs.end(),
+        [] (const juce::OSCMessage& m) { return m.getAddressPattern().toString() == "/custos/preset/error"; }));
+
+    tmp.deleteRecursively();
+}

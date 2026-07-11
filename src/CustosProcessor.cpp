@@ -449,12 +449,12 @@ void CustosProcessor::setPresetRoot (const juce::String& path)
             if (! adopted.empty())
                 setFavorites (adopted);                 // adopt real data
             else if (! favorites.empty())
-                writeInstruments (newRoot, favorites);  // target empty/corrupt but we have data -> carry, don't blank
+                persistFavorites();                     // target empty/corrupt but we have data -> carry, don't blank
             // else both empty -> nothing to do
         }
         else if (! favorites.empty())
         {
-            writeInstruments (newRoot, favorites);
+            persistFavorites();
         }
     }
 }
