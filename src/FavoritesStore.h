@@ -13,7 +13,7 @@ juce::String favoritesToJson (const std::vector<Favorite>& favs);
 std::vector<Favorite> favoritesFromJson (const juce::String& json);
 
 juce::File favoritesConfigFile();                                             // %APPDATA%/Custos/favorites.json
-void writeFavorites (const juce::File& file, const std::vector<Favorite>& favs);
+bool writeFavorites (const juce::File& file, const std::vector<Favorite>& favs);
 std::vector<Favorite> readFavorites (const juce::File& file);                 // missing file -> empty
 
 juce::File instrumentsConfigFile();                                          // %APPDATA%/Custos/instruments.json

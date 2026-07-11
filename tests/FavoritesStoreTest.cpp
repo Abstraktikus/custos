@@ -110,3 +110,31 @@ TEST_CASE ("writeInstruments lands at <root>/instruments.json")
     REQUIRE (back[0].name == "Zebra2");
     root.deleteRecursively();
 }
+
+TEST_CASE ("writeInstruments returns false when the target cannot be written")
+{
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");   // parent 'blocker' is a file -> mkdir + write must fail
+    REQUIRE_FALSE (writeInstruments (root, { { "X", "C:/x.vst3", 1, 0.0f } }));
+    tmp.deleteRecursively();
+}
+
+TEST_CASE ("writeInstruments does not report false success over a pre-existing read-only file")
+{
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    auto target = instrumentsFileIn (root);
+
+    REQUIRE (writeInstruments (root, { { "Stale", "C:/old.vst3", 1, 0.0f } }));
+    target.setReadOnly (true);
+
+    REQUIRE_FALSE (writeInstruments (root, { { "New", "C:/new.vst3", 1, 0.0f } }));
+
+    // The stale content must survive the failed overwrite untouched.
+    const auto back = readFavorites (target);
+    REQUIRE (back.size() == 1);
+    REQUIRE (back[0].name == "Stale");
+
+    target.setReadOnly (false);
+    root.deleteRecursively();
+}
