@@ -23,7 +23,8 @@ struct CommandResult { bool ok = false; int innerCount = 0; juce::String message
 // Which window (if any) to keep always-on-top.
 enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
-class CustosProcessor : public juce::AudioProcessor
+class CustosProcessor : public juce::AudioProcessor,
+                        private juce::AudioProcessorListener   // re-bind when the inner announces new params
 {
 public:
     explicit CustosProcessor (bool enableOsc = false);
@@ -31,6 +32,12 @@ public:
 
     // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
     bool loadInner (std::unique_ptr<juce::AudioProcessor> newInner, const juce::String& path = {});
+
+    // Re-run InnerBinding against the CURRENT inner and update boundCount. Message thread. Returns
+    // true if boundCount changed. Recovers the "cold-load froze the bind at 0" case: Roland ZenCore
+    // synths populate their VST3 params only after their engine initialises (later than the initial
+    // bind), then announce it via restartComponent -> audioProcessorChanged(parameterInfoChanged).
+    bool rebindInner();
     CommandResult load (const juce::String& path);
     void clear();
     void attachInner (std::unique_ptr<juce::AudioProcessor> newInner) { loadInner (std::move (newInner)); }
@@ -167,6 +174,11 @@ protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
 private:
+    // AudioProcessorListener (on the inner synth). Only parameterInfoChanged triggers a re-bind;
+    // per-value automation changes are ignored (they must not churn the facade binding).
+    void audioProcessorChanged (juce::AudioProcessor*, const juce::AudioProcessorListener::ChangeDetails& details) override;
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override {}
+
     void refreshEditor();            // refresh the active CustosEditor (if any) after a window state change
     void updateEditorRectReadout();  // lightweight: update only the editor's x/y/w/h readout (live during drag)
     void emitWindowRect();           // send /custos/window/rect position feedback to KM (no-op if sink null)
