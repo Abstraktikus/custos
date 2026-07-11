@@ -11,6 +11,7 @@
 #include <atomic>
 #include <array>
 #include <optional>
+#include <unordered_map>
 
 namespace custos
 {
@@ -163,6 +164,15 @@ public:
     void browseInstrument (int delta, int scope = 0);
     void setBrowseIndex (int i);
 
+    // Learn mode (message thread). KM opens a short window; while open, inner-parameter moves are
+    // captured and streamed as /custos/learn/moved so KM can bind a macro by wiggling the knob.
+    // Outside the window nothing is emitted. Spec: docs/superpowers/specs/2026-07-11-custos-learn-param-capture-design.md
+    void startLearn();                            // emit /custos/learn/started; arm drain + safety timers
+    void stopLearn (const juce::String& reason);  // final drain; emit /custos/learn/stopped N reason; no-op if closed
+    void drainLearn();                            // coalesce+emit queued moves (timer-driven; public for tests)
+    void learnRecord (int innerIdx, float value) noexcept;   // RT-safe enqueue; gated on learnActive
+    bool learnActiveForTest() const noexcept { return learnActive.load(); }
+
 protected:
     std::vector<FacadeParameter*> facade;   // non-owning: AudioProcessor owns via addParameter
 
@@ -221,6 +231,20 @@ private:
 
     DebounceTimer patchInjectTimer;   // reuse DebounceTimer; resets the injected param after the hold
     int patchInjectIndex = -1;        // param index currently held at 1.0 (-1 = none)
+
+    // ---- Learn: windowed inner-parameter capture ----
+    std::atomic<bool> learnActive { false };
+    static constexpr int   kLearnFifoCap  = 8192;
+    static constexpr float kLearnDeadband = 0.001f;
+    static constexpr int   kLearnDrainMs  = 25;
+    static constexpr int   kLearnSafetyMs = 10000;
+    juce::AbstractFifo learnFifo { kLearnFifoCap };
+    std::array<int,   (size_t) kLearnFifoCap> learnIdxRing {};
+    std::array<float, (size_t) kLearnFifoCap> learnValRing {};
+    std::unordered_map<int, float> learnLastEmitted;   // per facade idx: last emitted value (deadband)
+    struct RepeatingTimer : juce::Timer { std::function<void()> cb;
+        void timerCallback() override { if (cb) cb(); } } learnDrainTimer;
+    DebounceTimer learnSafetyTimer;   // one-shot; fires stopLearn("timeout")
 
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9

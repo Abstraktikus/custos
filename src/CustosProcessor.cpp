@@ -345,6 +345,34 @@ void CustosProcessor::emitMainLR()
     if (outboundSink) outboundSink (buildMainLR (identityN, mainLROnly()));
 }
 
+void CustosProcessor::startLearn()
+{
+    learnLastEmitted.clear();
+    learnFifo.reset();
+    learnActive.store (true);
+    if (outboundSink) outboundSink (buildLearnStarted (identityN));
+
+    learnDrainTimer.cb = [this] { drainLearn(); };
+    learnDrainTimer.startTimer (kLearnDrainMs);
+
+    learnSafetyTimer.cb = [this] { stopLearn ("timeout"); };
+    learnSafetyTimer.startTimer (kLearnSafetyMs);   // one-shot (DebounceTimer stops itself)
+}
+
+void CustosProcessor::stopLearn (const juce::String& reason)
+{
+    if (! learnActive.exchange (false)) return;   // already closed -> no duplicate stopped
+    learnDrainTimer.stopTimer();
+    learnSafetyTimer.stopTimer();
+    drainLearn();                                 // flush anything still queued
+    if (outboundSink) outboundSink (buildLearnStopped (identityN, reason));
+}
+
+void CustosProcessor::drainLearn()
+{
+    // Implemented in Task 3. Stub for now so the timer callback links.
+}
+
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     std::array<std::uint8_t, 16> snap {};
