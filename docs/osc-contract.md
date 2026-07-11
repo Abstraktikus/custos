@@ -40,6 +40,8 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/volume` | `gainDb:float` | live trim override |
 | `/custos/mainlr` | `on:int` (`0`\|`1`) | audio-fold: `1` sums all inner outputs onto stereo Out 1; `0` maps inner pairs across the 5 stereo out buses (local editor mirror; persisted in state v4) |
 | `/custos/mainlr/query` | — | → replies `/custos/mainlr` with the current fold flag (no state change) |
+| `/custos/learn/start` | `N:int` | open a Learn window: while open, operator parameter moves stream as `/custos/learn/moved`. Idempotent re-arm. Auto-closes after ~10 s. |
+| `/custos/learn/stop` | `N:int` | close the Learn window (emits `/custos/learn/stopped`). |
 | `/custos/favorites/begin` | — | start a favorites push |
 | `/custos/favorite` | `idx:int, name:string, path:string, favOrder:int, gainDb:float, brand:string, slots:int, controlType:string, paramDown:int, paramUp:int` | one favorites entry. `brand` optional 6th arg (UI brand filter). **`slots` optional 7th arg = the synth's param count** — Custos skips favourites whose `slots > facadeCap` when browsing/in the picker (a Custos 1000 won't browse a 4000-param synth). `0`/omitted = unknown → allowed. Source it from the VstDatabase or learn it from `/custos/loaded`'s `innerTotal`. **`controlType` optional 8th arg** (`PARAM`\|`PC`\|`PRESET`\|`NONE`; default `PRESET`) selects the `/custos/patch/next|prev` method for this instrument — anything other than `PARAM`/`PC` falls back to the preset store. **`paramDown`/`paramUp` optional 9th/10th args** = inner-synth param indices (mirrored 1:1 with the facade in `[0, boundCount)`) momentarily injected (1.0 then release) for `PARAM`-method patch-down/patch-up; ignored for other `controlType`s |
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
@@ -88,6 +90,9 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/window/rect` | `N, x,y,w,h:int, movable:int` | synth-window position feedback — emitted when the operator **drags** the window (on mouse-up) or when a rect is (re)applied. Physical px. Lets KM capture the operator-chosen geometry for its settings |
 | `/custos/midi/route` | `N, t1..t16:int` | MIDI route feedback — the current input→output channel map; emitted when a `/custos/midi/route` command is applied and in reply to `/custos/midi/query` |
 | `/custos/mainlr` | `N, on:int` | Main L/R fold feedback — the current flag (`1` = all inner outputs summed onto stereo Out 1, `0` = inner pairs mapped across the 5 buses). Emitted after an applied `/custos/mainlr` set and in reply to `/custos/mainlr/query` |
+| `/custos/learn/started` | `N` | Learn window opened; capture armed |
+| `/custos/learn/moved` | `N, facadeIdx:int, value:float, name:string` | one moved facade parameter (coalesced latest-per-idx, ~25 ms, deadband 0.001); `value` normalised 0..1 |
+| `/custos/learn/stopped` | `N, reason:string` | Learn window closed; `reason` = `"stop"` (explicit) or `"timeout"` (safety) |
 | `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list |
 | `/custos/patch/stepped` | `N, controlType:string, detail:string` | patch-axis feedback — reports the method that ran for the just-processed `/custos/patch/next`\|`prev` (`PARAM`\|`PC`; the `PRESET` fallback reports via `/custos/preset/browsing`+`/custos/preset/loaded` instead, not this address). `detail` is best-effort: `"+"`/`"-"` for `PARAM` (which direction was injected), the resulting program number (as a string) for `PC` |
 | `/custos/preset/browsing` | `N, name:string, idx:int` | preset-browse preview — the cursor's preset NAME while flipping (`preset/next`\|`prev`); **not loaded yet** (deferred load follows as `/custos/preset/loaded`). Mirrored to GP |
@@ -171,6 +176,16 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
   `/custos/here`. Combined with `innerTotal` in `/custos/loaded`, KM can detect when a loaded synth's
   real param count exceeds the running variant's `facadeCap` (top params silently unbound) and suggest a
   bigger variant.
+
+- **Learn window for parameter capture.** KM opens a short window on one Custos with `/custos/learn/start`,
+  which emits `/custos/learn/started`. While open, Custos streams each facade parameter the operator moves
+  (`/custos/learn/moved`, coalesced ~25 ms, sub-0.001 changes dropped, value normalised 0..1). KM picks
+  the intended parameter (largest movement, or a candidate list) and derives Min/Max from the value sweep,
+  then binds its macro to that `facadeIdx`. The window closes on `/custos/learn/stop` or a ~10 s safety
+  timeout; both emit `/custos/learn/stopped N reason` where `reason` is `"stop"` (explicit) or `"timeout"`
+  (safety). Only externally-observable parameter moves of the *inner* synth are reported (no facade-only
+  or internal moves). The feature is hub-only (not mirrored to GP) and does not change `protoVer`.
+  Internal-vs-user attribution is intentionally not attempted — the short window is the guard.
 
 ---
 
