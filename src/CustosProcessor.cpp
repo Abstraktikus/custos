@@ -12,6 +12,7 @@
 #include "InstrumentBrowser.h"
 #include "PresetStore.h"
 #include <algorithm>
+#include <cmath>
 
 namespace custos
 {
@@ -55,11 +56,11 @@ CustosProcessor::CustosProcessor (bool enableOsc)
 
 CustosProcessor::~CustosProcessor()
 {
+    if (inner != nullptr) inner->removeListener (this);   // defensive: don't rely on member-destruction order
     oscServer.reset();                  // stop OSC callbacks before tearing down the rest
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     titledWindow.reset();               // same for the titled window
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
-    if (inner != nullptr) inner->removeListener (this);   // stop re-bind callbacks before inner dies
 }
 
 juce::AudioProcessorEditor* CustosProcessor::createEditor()
@@ -94,8 +95,10 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
         boundCount = (inner != nullptr) ? InnerBinding::bind (*inner, facade) : 0;
     }
 
-    // Listen for late parameter population (restartComponent). Message-thread only, so outside the
-    // RT swapLock. The new inner may still report 0 params here (cold Roland); the listener re-binds.
+    // Wire the SINGLE AudioProcessorListener to the NEW inner (message-thread; outside the RT swapLock).
+    // One registration serves BOTH: re-bind on late param populate (#11, audioProcessorChanged — the new
+    // inner may still report 0 params here for a cold Roland) and Learn per-value capture (#12,
+    // audioProcessorParameterChanged). The OLD inner is unregistered at teardown below (single remove).
     if (inner != nullptr) inner->addListener (this);
 
     // Slow teardown OUTSIDE the lock.
@@ -371,6 +374,83 @@ void CustosProcessor::emitMidiRoute()
 void CustosProcessor::emitMainLR()
 {
     if (outboundSink) outboundSink (buildMainLR (identityN, mainLROnly()));
+}
+
+void CustosProcessor::startLearn()
+{
+    learnLastEmitted.clear();
+    learnFifo.reset();
+    learnActive.store (true);
+    if (outboundSink) outboundSink (buildLearnStarted (identityN));
+
+    learnDrainTimer.cb = [this] { drainLearn(); };
+    learnDrainTimer.startTimer (kLearnDrainMs);
+
+    learnSafetyTimer.cb = [this] { stopLearn ("timeout"); };
+    learnSafetyTimer.startTimer (kLearnSafetyMs);   // one-shot (DebounceTimer stops itself)
+}
+
+void CustosProcessor::stopLearn (const juce::String& reason)
+{
+    if (! learnActive.exchange (false)) return;   // already closed -> no duplicate stopped
+    learnDrainTimer.stopTimer();
+    learnSafetyTimer.stopTimer();
+    drainLearn();                                 // flush anything still queued
+    if (outboundSink) outboundSink (buildLearnStopped (identityN, reason));
+}
+
+void CustosProcessor::learnRecord (int innerIdx, float value) noexcept
+{
+    if (! learnActive.load (std::memory_order_relaxed)) return;   // gate: only while a window is open
+
+    int start1, size1, start2, size2;
+    learnFifo.prepareToWrite (1, start1, size1, start2, size2);
+    if (size1 > 0)
+    {
+        learnIdxRing[(size_t) start1] = innerIdx;
+        learnValRing[(size_t) start1] = value;
+        learnFifo.finishedWrite (1);
+    }
+    // FIFO full -> drop (coalescing tolerates loss; a human sweep won't overflow between 25 ms drains)
+}
+
+void CustosProcessor::drainLearn()
+{
+    // Pull everything queued, coalescing to the latest value per index (FIFO order = chronological).
+    std::unordered_map<int, float> latest;
+    int start1, size1, start2, size2;
+    const int ready = learnFifo.getNumReady();
+    learnFifo.prepareToRead (ready, start1, size1, start2, size2);
+    for (int i = 0; i < size1; ++i) latest[learnIdxRing[(size_t) (start1 + i)]] = learnValRing[(size_t) (start1 + i)];
+    for (int i = 0; i < size2; ++i) latest[learnIdxRing[(size_t) (start2 + i)]] = learnValRing[(size_t) (start2 + i)];
+    learnFifo.finishedRead (size1 + size2);
+
+    if (! outboundSink) return;
+
+    for (const auto& kv : latest)
+    {
+        const int   idx = kv.first;
+        const float val = kv.second;
+        if (idx < 0 || idx >= boundCount) continue;    // unbound facade tail -> not bindable, ignore
+
+        const auto prev = learnLastEmitted.find (idx);
+        if (prev != learnLastEmitted.end() && std::abs (val - prev->second) < kLearnDeadband)
+            continue;                                  // sub-deadband since last emit -> drop dither
+
+        learnLastEmitted[idx] = val;
+        outboundSink (buildLearnMoved (identityN, idx, val, facade[(size_t) idx]->getName (128)));
+    }
+}
+
+void CustosProcessor::audioProcessorParameterChanged (juce::AudioProcessor*, int index, float newValue)
+{
+    // Learn captures only MESSAGE-THREAD parameter moves — the operator turning a knob in the synth's
+    // editor. Audio-thread-originated changes (host automation / internal LFO modulation during
+    // processBlock) are intentionally ignored: the design treats internal modulation as noise, and this
+    // keeps the single-producer/single-consumer learnFifo touched from one thread only (the message
+    // thread, same as drainLearn). learnRecord still self-gates on learnActive.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        learnRecord (index, newValue);
 }
 
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)

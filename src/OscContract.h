@@ -84,4 +84,22 @@ inline juce::OSCMessage buildPatchStepped (int n, const juce::String& controlTyp
     return juce::OSCMessage ("/custos/patch/stepped", n, controlType, detail);
 }
 
+// Learn feedback (Custos -> KM hub, hub-only). N first. `started`/`stopped` bracket a KM-opened
+// capture window; `moved` reports one facade parameter the operator moved (idx into the facade,
+// normalised value, current name) so KM can bind a macro by wiggling the knob. reason = "stop"|"timeout".
+inline juce::OSCMessage buildLearnStarted (int n)
+{
+    return juce::OSCMessage ("/custos/learn/started", n);
+}
+
+inline juce::OSCMessage buildLearnMoved (int n, int facadeIdx, float value, const juce::String& name)
+{
+    return juce::OSCMessage ("/custos/learn/moved", n, facadeIdx, value, name);
+}
+
+inline juce::OSCMessage buildLearnStopped (int n, const juce::String& reason)
+{
+    return juce::OSCMessage ("/custos/learn/stopped", n, reason);
+}
+
 }
