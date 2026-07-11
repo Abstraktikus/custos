@@ -298,7 +298,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::FavEnd:
             proc.favoritesEnd();
-            writeInstruments (juce::File (proc.presetRoot()), proc.getFavorites());   // unified data root
+            proc.persistFavorites();   // unified data root; failure surfaced via /custos/preset/error
             break;
         case Command::WindowShow:
             proc.showSynthWindow();

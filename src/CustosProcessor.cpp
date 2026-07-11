@@ -444,10 +444,29 @@ void CustosProcessor::setPresetRoot (const juce::String& path)
     {
         auto target = instrumentsFileIn (newRoot);
         if (target.existsAsFile())
-            setFavorites (readFavorites (target));
+        {
+            auto adopted = readFavorites (target);
+            if (! adopted.empty())
+                setFavorites (adopted);                 // adopt real data
+            else if (! favorites.empty())
+                writeInstruments (newRoot, favorites);  // target empty/corrupt but we have data -> carry, don't blank
+            // else both empty -> nothing to do
+        }
         else if (! favorites.empty())
+        {
             writeInstruments (newRoot, favorites);
+        }
     }
+}
+
+bool CustosProcessor::persistFavorites()
+{
+    if (! writeInstruments (juce::File (presetRootPath), favorites))
+    {
+        emitPresetError ("favourites write failed");
+        return false;
+    }
+    return true;
 }
 
 int CustosProcessor::indexOfPreset (const juce::String& name) const

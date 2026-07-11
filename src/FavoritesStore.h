@@ -13,7 +13,7 @@ juce::String favoritesToJson (const std::vector<Favorite>& favs);
 std::vector<Favorite> favoritesFromJson (const juce::String& json);
 
 juce::File favoritesConfigFile();                                             // %APPDATA%/Custos/favorites.json
-bool writeFavorites (const juce::File& file, const std::vector<Favorite>& favs);
+bool writeFavorites (const juce::File& file, const std::vector<Favorite>& favs);   // returns true if the write succeeded
 std::vector<Favorite> readFavorites (const juce::File& file);                 // missing file -> empty
 
 juce::File instrumentsConfigFile();                                          // %APPDATA%/Custos/instruments.json
@@ -22,7 +22,7 @@ std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::Fi
 // Root-aware instrument-DB location (unified data root).
 juce::File instrumentsFileIn   (const juce::File& root);           // <root>/instruments.json
 juce::File instrumentsTargetFor (const juce::File& root);          // <root>/... or legacy %APPDATA% if root empty
-bool       writeInstruments    (const juce::File& root, const std::vector<Favorite>& favs);
+bool       writeInstruments    (const juce::File& root, const std::vector<Favorite>& favs);   // returns true if the write succeeded
 
 struct InstrumentsSource { juce::File file; bool fromLegacy = false; bool found = false; };
 

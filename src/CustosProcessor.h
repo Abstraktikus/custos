@@ -116,6 +116,7 @@ public:
     void         setPresetRoot (const juce::String& path);     // persist (KM push-once) + remember
     void         emitPresetRoot();                             // report /custos/preset/root (query + on set)
     juce::String presetRoot() const { return presetRootPath; }
+    bool         persistFavorites();                           // write getFavorites() to presetRoot(); emits preset/error on failure
     int  savePreset (const juce::String& name);                // sorted index, or -1 (no synth / empty name)
     std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
     bool loadPresetByName (const juce::String& name);          // emits loaded/error

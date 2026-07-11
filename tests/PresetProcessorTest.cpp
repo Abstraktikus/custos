@@ -316,3 +316,50 @@ TEST_CASE ("setPresetRoot carries current favourites into an empty new root")
     REQUIRE (seeded[0].name == "Carried");
     root.deleteRecursively();
 }
+
+TEST_CASE ("setPresetRoot does not blank in-memory favourites when the target parses empty")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    // Target exists but is corrupt / parses to empty (favoritesFromJson yields {} for garbage).
+    root.getChildFile ("instruments.json").replaceWithText ("not valid json");
+
+    CustosProcessor proc;
+    proc.setIdentity (1);
+    proc.setFavorites ({ { "Good", "C:/good.vst3", 1, 0.0f } });
+
+    proc.setPresetRoot (root.getFullPathName());     // target parses empty -> must carry memory, not blank
+
+    REQUIRE (proc.getFavorites().size() == 1);
+    REQUIRE (proc.getFavorites()[0].name == "Good");
+
+    // And the carried favourites must actually land at the new root, not be orphaned at the old one.
+    auto onDisk = custos::readFavorites (root.getChildFile ("instruments.json"));
+    REQUIRE (onDisk.size() == 1);
+    REQUIRE (onDisk[0].name == "Good");
+
+    root.deleteRecursively();
+}
+
+TEST_CASE ("FavEnd-equivalent persistFavorites surfaces a failed write via preset/error")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");    // parent 'blocker' is a file -> mkdir + write must fail
+
+    CustosProcessor proc;
+    proc.setIdentity (9);
+    proc.setPresetRoot (root.getFullPathName());   // no favourites yet -> adopt branch is a no-op
+    proc.setFavorites ({ { "X", "C:/x.vst3", 1, 0.0f } });
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    REQUIRE_FALSE (proc.persistFavorites());
+    REQUIRE (msgs.size() == 1);
+    REQUIRE (msgs[0].getAddressPattern().toString() == "/custos/preset/error");
+    REQUIRE ((int) msgs[0][0].getInt32() == 9);
+
+    tmp.deleteRecursively();
+}
