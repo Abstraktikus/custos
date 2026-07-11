@@ -59,6 +59,7 @@ CustosProcessor::~CustosProcessor()
     synthWindow.reset();                // destroy the hosted view before the inner synth (its owner)
     titledWindow.reset();               // same for the titled window
     InnerBinding::unbindAll (facade);   // drop dangling pointers before inner is destroyed
+    if (inner != nullptr) inner->removeListener (this);   // stop re-bind callbacks before inner dies
 }
 
 juce::AudioProcessorEditor* CustosProcessor::createEditor()
@@ -93,8 +94,12 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
         boundCount = (inner != nullptr) ? InnerBinding::bind (*inner, facade) : 0;
     }
 
+    // Listen for late parameter population (restartComponent). Message-thread only, so outside the
+    // RT swapLock. The new inner may still report 0 params here (cold Roland); the listener re-binds.
+    if (inner != nullptr) inner->addListener (this);
+
     // Slow teardown OUTSIDE the lock.
-    if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
+    if (oldInner != nullptr) { oldInner->removeListener (this); oldInner->releaseResources(); oldInner.reset(); }
 
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
@@ -120,6 +125,7 @@ CommandResult CustosProcessor::load (const juce::String& path)
     // 2nd instance during the swap) is wasteful and can crash. Just re-ack as loaded.
     if (inner != nullptr && path.isNotEmpty() && path == currentSynthPath)
     {
+        rebindInner();   // safety net: recover a bind frozen at 0 if the inner populated params since (no notify)
         emitLoaded();
         return { true, boundCount, "already loaded " + path };
     }
@@ -141,6 +147,28 @@ CommandResult CustosProcessor::load (const juce::String& path)
 void CustosProcessor::clear()
 {
     loadInner (nullptr, {});
+}
+
+bool CustosProcessor::rebindInner()
+{
+    int newCount = 0;
+    {
+        const juce::SpinLock::ScopedLockType sl (swapLock);   // guard the facade rewrite vs the audio thread
+        if (inner == nullptr) return false;
+        newCount = InnerBinding::bind (*inner, facade);
+    }
+    if (newCount == boundCount) return false;
+    boundCount = newCount;
+    return true;
+}
+
+void CustosProcessor::audioProcessorChanged (juce::AudioProcessor*, const juce::AudioProcessorListener::ChangeDetails& details)
+{
+    // Roland ZenCore & co. populate their VST3 params only after their engine initialises (later than
+    // the initial bind), then raise restartComponent(kParamTitlesChanged). Re-bind so the frozen-at-0
+    // facade recovers, and re-announce the new count to KM/GP. Per-value automation is ignored.
+    if (details.parameterInfoChanged && rebindInner())
+        emitLoaded();
 }
 
 void CustosProcessor::emitLoaded()
