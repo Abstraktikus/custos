@@ -262,3 +262,10 @@ TEST_CASE ("buildLearnStopped carries N and reason")
     REQUIRE (m[0].getInt32() == 7);
     REQUIRE (m[1].getString() == "timeout");
 }
+
+TEST_CASE ("gpMirrorsFeedback keeps learn/* hub-only")
+{
+    REQUIRE_FALSE (gpMirrorsFeedback ("/custos/learn/started", {}));
+    REQUIRE_FALSE (gpMirrorsFeedback ("/custos/learn/moved",   {}));
+    REQUIRE_FALSE (gpMirrorsFeedback ("/custos/learn/stopped", {}));
+}

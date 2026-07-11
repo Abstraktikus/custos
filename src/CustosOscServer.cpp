@@ -50,6 +50,10 @@ Command parseCommand (const juce::OSCMessage& msg)
       if (msg.size() > 0 && msg[0].isInt32()) c.mainLROn = (msg[0].getInt32() != 0); return c; }
     if (addr == "/custos/mainlr/query")
         return { Command::MainLRQuery, {} };
+    if (addr == "/custos/learn/start")
+        return { Command::LearnStart, {} };
+    if (addr == "/custos/learn/stop")
+        return { Command::LearnStop, {} };
     if (addr == "/custos/favorites/begin")
         return { Command::FavBegin, {} };
     if (addr == "/custos/favorite")
@@ -287,6 +291,12 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::MainLRQuery:
             proc.emitMainLR();
+            break;
+        case Command::LearnStart:
+            proc.startLearn();
+            break;
+        case Command::LearnStop:
+            proc.stopLearn ("stop");
             break;
         case Command::FavBegin:
             proc.favoritesBegin();
