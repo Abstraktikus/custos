@@ -55,7 +55,7 @@ TEST_CASE ("editor constructs and refreshes with presets present")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
     proc.savePreset ("Warm Pad");

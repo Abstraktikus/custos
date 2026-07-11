@@ -26,7 +26,7 @@ enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 class CustosProcessor : public juce::AudioProcessor
 {
 public:
-    explicit CustosProcessor (bool enableOsc = false);
+    explicit CustosProcessor (bool enableOsc = false, juce::File presetRootConfig = {});
     ~CustosProcessor() override;
 
     // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
@@ -204,6 +204,7 @@ private:
     void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
 
     juce::String presetRootPath;   // resolved preset root (from PresetStore config; KM may override)
+    juce::File presetRootCfg;   // where the machine-global preset-root pointer is persisted (injectable for tests)
     void emitPreset (const juce::String& verb, const juce::String& name, int idx);  // /custos/preset/<verb> N name idx
     void emitPresetError (const juce::String& reason);                               // /custos/preset/error N reason
     int  indexOfPreset (const juce::String& name) const;                             // in listPresets() (-1 if none)
