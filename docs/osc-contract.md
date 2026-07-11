@@ -61,7 +61,8 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/preset/rename` | `old:string, new:string` | rename a stored preset; emits `renamed`/`error` |
 | `/custos/preset/delete` | `name:string` | delete a stored preset; emits `deleted`/`error` |
 | `/custos/preset/list` | — | → replies `/custos/preset/list` (`N, count, names`) |
-| `/custos/preset/setroot` | `path:string` | set the machine-global preset-storage root (persisted); echoes `/custos/preset/root` |
+| `/custos/preset/setroot` | `path:string` | set the machine-global data root (presets **and** instrument DB), persisted; echoes `/custos/preset/root`; the favourites DB is adopted from / carried to the new root |
+| `/custos/preset/queryroot` | (none) | report the current data root without changing it; echoes `/custos/preset/root` |
 
 ---
 
@@ -132,13 +133,16 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 - **Favorites are machine-level and shared.** Push once to any one reachable instance (`favorites/begin
   … end`); Custos writes the shared config and every instance uses it (the receiver immediately, others
   on next boot / when their picker opens). **No per-instance fan-out.**
-- **The machine config file is `instruments.json`** (`%APPDATA%/Custos/instruments.json`), superseding
-  the old `favorites.json` name — it now holds every pushed instrument, not just favourites (see `scope`
-  below). **One-time migration:** on boot, if `instruments.json` doesn't exist yet, Custos reads the
-  legacy `favorites.json` instead so an upgraded install keeps working with no data loss. The migration
-  is read-only at boot; the on-disk file only becomes `instruments.json` once something pushes via
-  `favorites/begin … end` again (which always writes the new filename). Until then, repeated boots keep
-  reading the legacy file — this is intentional (no silent rewrite of a file KM didn't touch).
+- **The machine config file is `instruments.json`**, superseding the old `favorites.json` name — it now
+  holds every pushed instrument, not just favourites (see `scope` below). **It now lives under the
+  unified data root** (`<root>/instruments.json`, set/queried via `/custos/preset/setroot` \|
+  `/custos/preset/queryroot`), with the legacy `%APPDATA%/Custos/instruments.json` (and, before that,
+  `favorites.json`) kept as a read-only fallback when no root is set yet or the root has no DB of its
+  own. **One-time migration:** on boot, if `<root>/instruments.json` doesn't exist yet, Custos reads the
+  legacy file instead (first `%APPDATA%/Custos/instruments.json`, else `favorites.json`) so an upgraded
+  install keeps working with no data loss; if a root is set, the legacy data is also self-healed into
+  `<root>/instruments.json` once. Until then, repeated boots keep reading the legacy file — this is
+  intentional (no silent rewrite of a file KM didn't touch).
 - **`scope` splits the browse list into favourites vs. everything.** Each pushed entry's `favOrder`
   decides membership: `favOrder >= 1` = a favourite. `/custos/instrument/next|prev` with `scope` omitted
   or `0` cycles favourites only; `scope 1` cycles the full instrument list (favourites and non-favourites

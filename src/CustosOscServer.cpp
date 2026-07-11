@@ -153,6 +153,7 @@ Command parseCommand (const juce::OSCMessage& msg)
     if (addr == "/custos/preset/setroot")
     { Command c; c.kind = Command::PresetSetRoot;
       if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/queryroot") { Command c; c.kind = Command::PresetQueryRoot; return c; }
     if (addr == "/custos/preset/save")
     { Command c; c.kind = Command::PresetSave;
       if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
@@ -344,6 +345,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::PresetSetRoot:
             proc.setPresetRoot (cmd.rootPath);
+            break;
+        case Command::PresetQueryRoot:
+            proc.emitPresetRoot();
             break;
         case Command::PresetSave:
             proc.savePreset (cmd.presetName);

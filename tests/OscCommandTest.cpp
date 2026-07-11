@@ -218,3 +218,9 @@ TEST_CASE ("parseCommand maps /custos/patch/next and /custos/patch/prev")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/next")).kind == Command::PatchNext);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/prev")).kind == Command::PatchPrev);
 }
+
+TEST_CASE ("parseCommand maps /custos/preset/queryroot")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/queryroot")).kind
+             == Command::PresetQueryRoot);
+}
