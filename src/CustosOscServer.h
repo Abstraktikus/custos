@@ -13,7 +13,7 @@ struct Command
                 WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
                 BrowseNext, BrowsePrev, BrowseSet, InstrumentLoad,
                 PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
-                PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery,
+                PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery, PresetQueryRoot,
                 LearnStart, LearnStop,
                 PatchNext, PatchPrev, Unknown } kind = Unknown;
     juce::String path;

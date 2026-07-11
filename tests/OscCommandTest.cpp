@@ -224,3 +224,9 @@ TEST_CASE ("parseCommand maps /custos/learn/start and /custos/learn/stop")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/learn/start")).kind == Command::LearnStart);
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/learn/stop")).kind  == Command::LearnStop);
 }
+
+TEST_CASE ("parseCommand maps /custos/preset/queryroot")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/queryroot")).kind
+             == Command::PresetQueryRoot);
+}

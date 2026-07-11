@@ -30,6 +30,6 @@ bool renamePreset (const juce::File& root, const juce::String& classId,
 // Machine-global root persistence (favourites-style), %APPDATA%/Custos/presetRoot.txt.
 juce::File   presetRootConfigFile();
 juce::File   defaultPresetRoot();                    // ~/Documents/CustosPresets
-void         writePresetRoot (const juce::File& cfg, const juce::String& path);
+bool         writePresetRoot (const juce::File& cfg, const juce::String& path); // false on persist failure
 juce::String readPresetRoot (const juce::File& cfg); // missing/empty -> defaultPresetRoot() path
 }

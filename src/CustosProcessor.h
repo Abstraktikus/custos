@@ -28,7 +28,7 @@ class CustosProcessor : public juce::AudioProcessor,
                         private juce::AudioProcessorListener   // re-bind on late param populate (#11) + Learn capture (#12)
 {
 public:
-    explicit CustosProcessor (bool enableOsc = false);
+    explicit CustosProcessor (bool enableOsc = false, juce::File presetRootConfig = {});
     ~CustosProcessor() override;
 
     // M3 safe runtime swap (message thread). loadInner(nullptr) == clear.
@@ -122,7 +122,9 @@ public:
     bool restoreInnerState (const juce::MemoryBlock& state);   // inner->setStateInformation; false if no inner
 
     void         setPresetRoot (const juce::String& path);     // persist (KM push-once) + remember
+    void         emitPresetRoot();                             // report /custos/preset/root (query + on set)
     juce::String presetRoot() const { return presetRootPath; }
+    bool         persistFavorites();                           // write getFavorites() to presetRoot(); emits preset/error on failure
     int  savePreset (const juce::String& name);                // sorted index, or -1 (no synth / empty name)
     std::vector<juce::String> listPresets() const;             // current synth's presets, alphabetical
     bool loadPresetByName (const juce::String& name);          // emits loaded/error
@@ -226,6 +228,7 @@ private:
     void resizeInnerScratch();                              // (re)size innerScratch from the current inner + block size
 
     juce::String presetRootPath;   // resolved preset root (from PresetStore config; KM may override)
+    juce::File presetRootCfg;   // where the machine-global preset-root pointer is persisted (injectable for tests)
     void emitPreset (const juce::String& verb, const juce::String& name, int idx);  // /custos/preset/<verb> N name idx
     void emitPresetError (const juce::String& reason);                               // /custos/preset/error N reason
     int  indexOfPreset (const juce::String& name) const;                             // in listPresets() (-1 if none)

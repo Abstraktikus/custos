@@ -84,10 +84,10 @@ juce::File defaultPresetRoot()
               .getChildFile ("CustosPresets");
 }
 
-void writePresetRoot (const juce::File& cfg, const juce::String& path)
+bool writePresetRoot (const juce::File& cfg, const juce::String& path)
 {
     cfg.getParentDirectory().createDirectory();
-    cfg.replaceWithText (path);
+    return cfg.replaceWithText (path);   // true on success
 }
 
 juce::String readPresetRoot (const juce::File& cfg)

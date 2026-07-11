@@ -85,3 +85,127 @@ TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file"
 
     legacy.deleteFile(); neu.deleteFile(); tmp.deleteRecursively();
 }
+
+TEST_CASE ("instrumentsFileIn / instrumentsTargetFor pick the right file")
+{
+    juce::File root ("C:/backup/Custos");
+    REQUIRE (instrumentsFileIn (root).getFullPathName()
+             == juce::File ("C:/backup/Custos/instruments.json").getFullPathName());
+
+    // Non-empty root -> under the root.
+    REQUIRE (instrumentsTargetFor (root) == instrumentsFileIn (root));
+
+    // Empty/invalid root -> legacy %APPDATA% canonical file.
+    REQUIRE (instrumentsTargetFor (juce::File()) == instrumentsConfigFile());
+}
+
+TEST_CASE ("writeInstruments lands at <root>/instruments.json")
+{
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    REQUIRE (writeInstruments (root, { { "Zebra2", "C:/x/Zebra2.vst3", 1, 0.0f, "u-he" } }));
+    auto target = root.getChildFile ("instruments.json");
+    REQUIRE (target.existsAsFile());
+    const auto back = readFavorites (target);
+    REQUIRE (back.size() == 1);
+    REQUIRE (back[0].name == "Zebra2");
+    root.deleteRecursively();
+}
+
+TEST_CASE ("writeInstruments returns false when the target cannot be written")
+{
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");   // parent 'blocker' is a file -> mkdir + write must fail
+    REQUIRE_FALSE (writeInstruments (root, { { "X", "C:/x.vst3", 1, 0.0f } }));
+    tmp.deleteRecursively();
+}
+
+TEST_CASE ("writeInstruments does not report false success over a pre-existing read-only file")
+{
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    auto target = instrumentsFileIn (root);
+
+    REQUIRE (writeInstruments (root, { { "Stale", "C:/old.vst3", 1, 0.0f } }));
+    target.setReadOnly (true);
+
+    REQUIRE_FALSE (writeInstruments (root, { { "New", "C:/new.vst3", 1, 0.0f } }));
+
+    // The stale content must survive the failed overwrite untouched.
+    const auto back = readFavorites (target);
+    REQUIRE (back.size() == 1);
+    REQUIRE (back[0].name == "Stale");
+
+    target.setReadOnly (false);
+    root.deleteRecursively();
+}
+
+TEST_CASE ("resolveInstrumentsSource honours tier order root > canonical > old")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto rootF = root.getChildFile ("instruments.json");
+    auto canon = dir.getChildFile ("instruments.json");   // legacy canonical
+    auto old   = dir.getChildFile ("favorites.json");     // legacy old
+
+    // None present -> not found, file points at tier 1 target.
+    auto r0 = resolveInstrumentsSource (root, canon, old);
+    REQUIRE_FALSE (r0.found);
+    REQUIRE (r0.file == rootF);
+
+    // Only old present -> tier 3, fromLegacy.
+    writeFavorites (old, { { "O", "C:/o.vst3", 1, 0.0f } });
+    auto r3 = resolveInstrumentsSource (root, canon, old);
+    REQUIRE (r3.found); REQUIRE (r3.fromLegacy); REQUIRE (r3.file == old);
+
+    // Canonical present -> tier 2 wins over old.
+    writeFavorites (canon, { { "C", "C:/c.vst3", 1, 0.0f } });
+    auto r2 = resolveInstrumentsSource (root, canon, old);
+    REQUIRE (r2.found); REQUIRE (r2.fromLegacy); REQUIRE (r2.file == canon);
+
+    // Root present -> tier 1 wins, not legacy.
+    writeFavorites (rootF, { { "R", "C:/r.vst3", 1, 0.0f } });
+    auto r1 = resolveInstrumentsSource (root, canon, old);
+    REQUIRE (r1.found); REQUIRE_FALSE (r1.fromLegacy); REQUIRE (r1.file == rootF);
+
+    // Empty root -> tier 1 skipped, resolves to canonical.
+    auto re = resolveInstrumentsSource (juce::File(), canon, old);
+    REQUIRE (re.found); REQUIRE (re.fromLegacy); REQUIRE (re.file == canon);
+
+    dir.deleteRecursively();
+}
+
+TEST_CASE ("loadInstrumentsWithSelfHeal seeds the root from a legacy file, once")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto rootF = root.getChildFile ("instruments.json");
+    auto canon = dir.getChildFile ("instruments.json");
+    auto old   = dir.getChildFile ("favorites.json");
+
+    writeFavorites (canon, { { "Legacy", "C:/l.vst3", 1, 0.0f } });
+    REQUIRE_FALSE (rootF.existsAsFile());
+
+    // Legacy read -> data returned AND seeded into the root.
+    auto favs = loadInstrumentsWithSelfHeal (root, canon, old);
+    REQUIRE (favs.size() == 1);
+    REQUIRE (favs[0].name == "Legacy");
+    REQUIRE (rootF.existsAsFile());                 // self-heal wrote it
+
+    // Second call reads tier 1 and does not touch legacy; still correct.
+    auto again = loadInstrumentsWithSelfHeal (root, canon, old);
+    REQUIRE (again.size() == 1);
+    REQUIRE (again[0].name == "Legacy");
+
+    dir.deleteRecursively();
+}
+
+TEST_CASE ("loadInstrumentsWithSelfHeal returns empty and seeds nothing when no source exists")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto favs = loadInstrumentsWithSelfHeal (root, dir.getChildFile ("instruments.json"),
+                                                   dir.getChildFile ("favorites.json"));
+    REQUIRE (favs.empty());
+    REQUIRE_FALSE (root.getChildFile ("instruments.json").existsAsFile());   // no seed from nothing
+    dir.deleteRecursively();
+}

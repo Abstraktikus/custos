@@ -50,10 +50,10 @@ juce::File favoritesConfigFile()
               .getChildFile ("Custos").getChildFile ("favorites.json");
 }
 
-void writeFavorites (const juce::File& file, const std::vector<Favorite>& favs)
+bool writeFavorites (const juce::File& file, const std::vector<Favorite>& favs)
 {
     file.getParentDirectory().createDirectory();
-    file.replaceWithText (favoritesToJson (favs));
+    return file.replaceWithText (favoritesToJson (favs));
 }
 
 std::vector<Favorite> readFavorites (const juce::File& file)
@@ -68,10 +68,53 @@ juce::File instrumentsConfigFile()
               .getChildFile ("Custos").getChildFile ("instruments.json");
 }
 
+juce::File instrumentsFileIn (const juce::File& root)
+{
+    return root.getChildFile ("instruments.json");
+}
+
+juce::File instrumentsTargetFor (const juce::File& root)
+{
+    return root.getFullPathName().isNotEmpty() ? instrumentsFileIn (root)
+                                               : instrumentsConfigFile();
+}
+
+bool writeInstruments (const juce::File& root, const std::vector<Favorite>& favs)
+{
+    return writeFavorites (instrumentsTargetFor (root), favs);
+}
+
 std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::File& legacyFile)
 {
     if (newFile.existsAsFile())    return readFavorites (newFile);
     if (legacyFile.existsAsFile()) return readFavorites (legacyFile);   // one-time migration read
     return {};
+}
+
+InstrumentsSource resolveInstrumentsSource (const juce::File& root,
+                                            const juce::File& legacyCanonical,
+                                            const juce::File& legacyOld)
+{
+    const bool rootValid = root.getFullPathName().isNotEmpty();
+    if (rootValid)
+    {
+        auto tier1 = instrumentsFileIn (root);
+        if (tier1.existsAsFile()) return { tier1, false, true };
+    }
+    if (legacyCanonical.existsAsFile()) return { legacyCanonical, true, true };
+    if (legacyOld.existsAsFile())       return { legacyOld, true, true };
+    return { rootValid ? instrumentsFileIn (root) : legacyCanonical, false, false };
+}
+
+std::vector<Favorite> loadInstrumentsWithSelfHeal (const juce::File& root,
+                                                   const juce::File& legacyCanonical,
+                                                   const juce::File& legacyOld)
+{
+    const auto src = resolveInstrumentsSource (root, legacyCanonical, legacyOld);
+    if (! src.found) return {};
+    auto favs = readFavorites (src.file);
+    if (src.fromLegacy && root.getFullPathName().isNotEmpty() && ! favs.empty())
+        writeInstruments (root, favs);      // self-heal seed into the backup-friendly root
+    return favs;
 }
 }

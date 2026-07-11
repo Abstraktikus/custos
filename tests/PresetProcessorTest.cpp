@@ -32,7 +32,7 @@ TEST_CASE ("save writes a file and emits saved with identity first")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (7);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -53,7 +53,7 @@ TEST_CASE ("save with no synth loaded emits error, writes nothing")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (3);
     proc.setPresetRoot (root.getFullPathName());
     std::vector<juce::OSCMessage> msgs;
@@ -69,7 +69,7 @@ TEST_CASE ("load restores inner state and emits loaded")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (2);
     proc.setPresetRoot (root.getFullPathName());
     auto fake = std::make_unique<test::FakeInnerProcessor>();
@@ -94,7 +94,7 @@ TEST_CASE ("presetSet loads immediately by index and emits loaded")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (1);
     proc.setPresetRoot (root.getFullPathName());
     auto fake = std::make_unique<test::FakeInnerProcessor>();
@@ -116,7 +116,7 @@ TEST_CASE ("presetNext/prev step the cursor with wrap and preview browsing")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (1);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -141,7 +141,7 @@ TEST_CASE ("presetSet out of range leaves cursor uncorrupted")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (1);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -164,7 +164,7 @@ TEST_CASE ("preset names preserve German umlauts")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (1);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -180,7 +180,7 @@ TEST_CASE ("presetCursor re-seeds to the new synth on attachInner swap")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (1);
     proc.setPresetRoot (root.getFullPathName());
 
@@ -212,7 +212,7 @@ TEST_CASE ("rename and delete presets emit feedback")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (4);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -238,7 +238,7 @@ TEST_CASE ("recall during an in-flight synth load is buffered then applied after
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
-    CustosProcessor proc;
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
     proc.setIdentity (5);
     proc.setPresetRoot (root.getFullPathName());
     proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
@@ -267,5 +267,139 @@ TEST_CASE ("recall during an in-flight synth load is buffered then applied after
     REQUIRE (lastLoaded != msgs.rend());
     REQUIRE ((*lastLoaded)[1].getString() == "Banana");   // buffered set(1) applied post-load
 
+    root.deleteRecursively();
+}
+
+TEST_CASE ("emitPresetRoot reports identity + current root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (6);
+    proc.setPresetRoot (root.getFullPathName());
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.emitPresetRoot();
+    REQUIRE (msgs.size() == 1);
+    REQUIRE (msgs[0].getAddressPattern().toString() == "/custos/preset/root");
+    REQUIRE ((int) msgs[0][0].getInt32() == 6);
+    REQUIRE (msgs[0][1].getString() == root.getFullPathName());
+    root.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot adopts an existing instruments.json at the new root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    custos::writeFavorites (root.getChildFile ("instruments.json"),
+                            { { "Adopted", "C:/a.vst3", 1, 0.0f } });
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (1);
+    proc.setPresetRoot (root.getFullPathName());     // should adopt the file's favourites
+    REQUIRE (proc.getFavorites().size() == 1);
+    REQUIRE (proc.getFavorites()[0].name == "Adopted");
+    root.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot carries current favourites into an empty new root")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (1);
+    proc.setFavorites ({ { "Carried", "C:/c.vst3", 1, 0.0f } });
+    proc.setPresetRoot (root.getFullPathName());     // no file at root -> carry memory there
+    auto seeded = custos::readFavorites (root.getChildFile ("instruments.json"));
+    REQUIRE (seeded.size() == 1);
+    REQUIRE (seeded[0].name == "Carried");
+    root.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot does not blank in-memory favourites when the target parses empty")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    // Target exists but is corrupt / parses to empty (favoritesFromJson yields {} for garbage).
+    root.getChildFile ("instruments.json").replaceWithText ("not valid json");
+
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (1);
+    proc.setFavorites ({ { "Good", "C:/good.vst3", 1, 0.0f } });
+
+    proc.setPresetRoot (root.getFullPathName());     // target parses empty -> must carry memory, not blank
+
+    REQUIRE (proc.getFavorites().size() == 1);
+    REQUIRE (proc.getFavorites()[0].name == "Good");
+
+    // And the carried favourites must actually land at the new root, not be orphaned at the old one.
+    auto onDisk = custos::readFavorites (root.getChildFile ("instruments.json"));
+    REQUIRE (onDisk.size() == 1);
+    REQUIRE (onDisk[0].name == "Good");
+
+    root.deleteRecursively();
+}
+
+TEST_CASE ("FavEnd-equivalent persistFavorites surfaces a failed write via preset/error")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");    // parent 'blocker' is a file -> mkdir + write must fail
+
+    CustosProcessor proc (false, tmp.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (9);
+    proc.setPresetRoot (root.getFullPathName());   // no favourites yet -> adopt branch is a no-op
+    proc.setFavorites ({ { "X", "C:/x.vst3", 1, 0.0f } });
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    REQUIRE_FALSE (proc.persistFavorites());
+    REQUIRE (msgs.size() == 1);
+    REQUIRE (msgs[0].getAddressPattern().toString() == "/custos/preset/error");
+    REQUIRE ((int) msgs[0][0].getInt32() == 9);
+
+    tmp.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot carry write surfaces a failure via preset/error instead of swallowing it")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto tmp = juce::File::createTempFile (""); tmp.deleteFile(); tmp.createDirectory();
+    auto blocker = tmp.getChildFile ("blocker"); blocker.replaceWithText ("x");  // a FILE
+    auto root = blocker.getChildFile ("sub");    // parent 'blocker' is a file -> mkdir + write must fail
+
+    CustosProcessor proc (false, tmp.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (8);
+    proc.setFavorites ({ { "Carried", "C:/c.vst3", 1, 0.0f } });   // non-empty in-memory favourites BEFORE the switch
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    proc.setPresetRoot (root.getFullPathName());   // no file at unwritable root -> carry write, must not go silent
+
+    REQUIRE (std::any_of (msgs.begin(), msgs.end(),
+        [] (const juce::OSCMessage& m) { return m.getAddressPattern().toString() == "/custos/preset/error"; }));
+
+    tmp.deleteRecursively();
+}
+
+TEST_CASE ("setPresetRoot surfaces a failed config-file persist")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    auto blocker = root.getChildFile ("blocker"); blocker.replaceWithText ("x");   // a FILE
+    auto badCfg = blocker.getChildFile ("sub/presetRoot.txt");   // parent 'blocker' is a file -> write must fail
+
+    CustosProcessor proc (false, badCfg);
+    proc.setIdentity (1);
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+    proc.setPresetRoot (root.getFullPathName());   // writable root, unwritable config
+    const bool sawError = std::any_of (msgs.begin(), msgs.end(),
+        [] (const juce::OSCMessage& m){ return m.getAddressPattern().toString() == "/custos/preset/error"; });
+    REQUIRE (sawError);
     root.deleteRecursively();
 }

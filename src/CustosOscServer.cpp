@@ -157,6 +157,7 @@ Command parseCommand (const juce::OSCMessage& msg)
     if (addr == "/custos/preset/setroot")
     { Command c; c.kind = Command::PresetSetRoot;
       if (msg.size() > 0 && msg[0].isString()) c.rootPath = msg[0].getString(); return c; }
+    if (addr == "/custos/preset/queryroot") { Command c; c.kind = Command::PresetQueryRoot; return c; }
     if (addr == "/custos/preset/save")
     { Command c; c.kind = Command::PresetSave;
       if (msg.size() > 0 && msg[0].isString()) c.presetName = msg[0].getString(); return c; }
@@ -194,7 +195,8 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
         }
         maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
-    proc.setFavorites (readInstruments (instrumentsConfigFile(), favoritesConfigFile()));  // new, else migrate legacy
+    proc.setFavorites (loadInstrumentsWithSelfHeal (juce::File (proc.presetRoot()),
+                                                    instrumentsConfigFile(), favoritesConfigFile()));
 }
 
 CustosOscServer::~CustosOscServer()
@@ -306,7 +308,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::FavEnd:
             proc.favoritesEnd();
-            writeFavorites (instrumentsConfigFile(), proc.getFavorites());   // shared machine config
+            proc.persistFavorites();   // unified data root; failure surfaced via /custos/preset/error
             break;
         case Command::WindowShow:
             proc.showSynthWindow();
@@ -353,6 +355,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::PresetSetRoot:
             proc.setPresetRoot (cmd.rootPath);
+            break;
+        case Command::PresetQueryRoot:
+            proc.emitPresetRoot();
             break;
         case Command::PresetSave:
             proc.savePreset (cmd.presetName);

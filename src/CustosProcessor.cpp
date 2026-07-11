@@ -16,7 +16,7 @@
 
 namespace custos
 {
-CustosProcessor::CustosProcessor (bool enableOsc)
+CustosProcessor::CustosProcessor (bool enableOsc, juce::File presetRootConfig)
     : juce::AudioProcessor (BusesProperties()
         .withInput  ("Input", juce::AudioChannelSet::stereo(), true)
         .withOutput ("Out 1", juce::AudioChannelSet::stereo(), true)
@@ -44,7 +44,9 @@ CustosProcessor::CustosProcessor (bool enableOsc)
         if (! r.ok) juce::Logger::writeToLog ("Custos: inner synth load failed: " + r.message);
     }
 
-    presetRootPath = readPresetRoot (presetRootConfigFile());
+    presetRootCfg = presetRootConfig.getFullPathName().isNotEmpty() ? presetRootConfig
+                                                                     : presetRootConfigFile();
+    presetRootPath = readPresetRoot (presetRootCfg);
 
     browseDebounce.cb = [this] { commitBrowseLoad(); };   // fires 400 ms after flipping stops
 
@@ -528,17 +530,55 @@ bool CustosProcessor::restoreInnerState (const juce::MemoryBlock& state)
     return true;
 }
 
-void CustosProcessor::setPresetRoot (const juce::String& path)
+void CustosProcessor::emitPresetRoot()
 {
-    presetRootPath = path;
-    writePresetRoot (presetRootConfigFile(), path);
     if (outboundSink)
     {
         juce::OSCMessage m ("/custos/preset/root");
         m.addInt32 (identityN);
-        m.addString (path);
+        m.addString (presetRootPath);
         outboundSink (m);
     }
+}
+
+void CustosProcessor::setPresetRoot (const juce::String& path)
+{
+    presetRootPath = path;
+    const bool persisted = writePresetRoot (presetRootCfg, path);
+    emitPresetRoot();
+    if (! persisted)
+        emitPresetError ("preset root not persisted");
+
+    // The instrument/favourites DB follows the root: adopt what is already at the new location,
+    // otherwise carry the current in-memory favourites there so the operator never loses them.
+    juce::File newRoot (path);
+    if (newRoot.getFullPathName().isNotEmpty())
+    {
+        auto target = instrumentsFileIn (newRoot);
+        if (target.existsAsFile())
+        {
+            auto adopted = readFavorites (target);
+            if (! adopted.empty())
+                setFavorites (adopted);                 // adopt real data
+            else if (! favorites.empty())
+                persistFavorites();                     // target empty/corrupt but we have data -> carry, don't blank
+            // else both empty -> nothing to do
+        }
+        else if (! favorites.empty())
+        {
+            persistFavorites();
+        }
+    }
+}
+
+bool CustosProcessor::persistFavorites()
+{
+    if (! writeInstruments (juce::File (presetRootPath), favorites))
+    {
+        emitPresetError ("favourites write failed");
+        return false;
+    }
+    return true;
 }
 
 int CustosProcessor::indexOfPreset (const juce::String& name) const
