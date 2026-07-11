@@ -24,7 +24,8 @@ struct CommandResult { bool ok = false; int innerCount = 0; juce::String message
 // Which window (if any) to keep always-on-top.
 enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
-class CustosProcessor : public juce::AudioProcessor
+class CustosProcessor : public juce::AudioProcessor,
+                        private juce::AudioProcessorListener
 {
 public:
     explicit CustosProcessor (bool enableOsc = false);
@@ -245,6 +246,13 @@ private:
     struct RepeatingTimer : juce::Timer { std::function<void()> cb;
         void timerCallback() override { if (cb) cb(); } } learnDrainTimer;
     DebounceTimer learnSafetyTimer;   // one-shot; fires stopLearn("timeout")
+
+    // AudioProcessorListener on the CURRENT inner (wired in loadInner: add on the new inner, remove
+    // from the old one before it's destroyed). Per-value moves route into learnRecord (RT-safe,
+    // gated on learnActive). audioProcessorChanged has no rebind logic in this codebase (nothing to
+    // preserve) — it's overridden only because the base declares it pure virtual.
+    void audioProcessorParameterChanged (juce::AudioProcessor*, int, float) override;
+    void audioProcessorChanged (juce::AudioProcessor*, const juce::AudioProcessorListener::ChangeDetails&) override {}
 
     void patchInjectParam (int paramIndex);       // Task 8
     void patchSendProgramChange (int delta);      // Task 9

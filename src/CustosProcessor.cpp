@@ -12,6 +12,7 @@
 #include "InstrumentBrowser.h"
 #include "PresetStore.h"
 #include <algorithm>
+#include <cmath>
 
 namespace custos
 {
@@ -92,6 +93,11 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
         inner = std::move (newInner);
         boundCount = (inner != nullptr) ? InnerBinding::bind (*inner, facade) : 0;
     }
+
+    // Learn: re-wire the per-value listener to track the current inner. The old inner must be
+    // unregistered before teardown (it's about to be destroyed).
+    if (oldInner != nullptr) oldInner->removeListener (this);
+    if (inner    != nullptr) inner->addListener (this);
 
     // Slow teardown OUTSIDE the lock.
     if (oldInner != nullptr) { oldInner->releaseResources(); oldInner.reset(); }
@@ -368,9 +374,54 @@ void CustosProcessor::stopLearn (const juce::String& reason)
     if (outboundSink) outboundSink (buildLearnStopped (identityN, reason));
 }
 
+void CustosProcessor::learnRecord (int innerIdx, float value) noexcept
+{
+    if (! learnActive.load (std::memory_order_relaxed)) return;   // gate: only while a window is open
+
+    int start1, size1, start2, size2;
+    learnFifo.prepareToWrite (1, start1, size1, start2, size2);
+    if (size1 > 0)
+    {
+        learnIdxRing[(size_t) start1] = innerIdx;
+        learnValRing[(size_t) start1] = value;
+        learnFifo.finishedWrite (1);
+    }
+    // FIFO full -> drop (coalescing tolerates loss; a human sweep won't overflow between 25 ms drains)
+}
+
 void CustosProcessor::drainLearn()
 {
-    // Implemented in Task 3. Stub for now so the timer callback links.
+    // Pull everything queued, coalescing to the latest value per index (FIFO order = chronological).
+    std::unordered_map<int, float> latest;
+    int start1, size1, start2, size2;
+    const int ready = learnFifo.getNumReady();
+    learnFifo.prepareToRead (ready, start1, size1, start2, size2);
+    for (int i = 0; i < size1; ++i) latest[learnIdxRing[(size_t) (start1 + i)]] = learnValRing[(size_t) (start1 + i)];
+    for (int i = 0; i < size2; ++i) latest[learnIdxRing[(size_t) (start2 + i)]] = learnValRing[(size_t) (start2 + i)];
+    learnFifo.finishedRead (size1 + size2);
+
+    if (! outboundSink) return;
+
+    for (const auto& kv : latest)
+    {
+        const int   idx = kv.first;
+        const float val = kv.second;
+        if (idx < 0 || idx >= boundCount) continue;    // unbound facade tail -> not bindable, ignore
+
+        const auto prev = learnLastEmitted.find (idx);
+        if (prev != learnLastEmitted.end() && std::abs (val - prev->second) < kLearnDeadband)
+            continue;                                  // sub-deadband since last emit -> drop dither
+
+        learnLastEmitted[idx] = val;
+        outboundSink (buildLearnMoved (identityN, idx, val, facade[(size_t) idx]->getName (128)));
+    }
+}
+
+void CustosProcessor::audioProcessorParameterChanged (juce::AudioProcessor*, int index, float newValue)
+{
+    // Per-value moves are only interesting while a Learn window is open; learnRecord self-gates and
+    // is RT-safe (enqueue only). The parameterInfoChanged re-bind path stays in audioProcessorChanged.
+    learnRecord (index, newValue);
 }
 
 void CustosProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
