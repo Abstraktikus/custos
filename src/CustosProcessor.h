@@ -147,7 +147,10 @@ public:
 
     // F3/F6: show (if needed) + place the synth window at a PHYSICAL-pixel rect (DPI-mapped). Message thread.
     // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
-    void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false);
+    // fit = treat (x,y,w,h) as an available AREA; fit the editor aspect-preserved + centred, leaving a
+    //   marginLogical (logical px) frame, and force always-on-top (docking into a host UI region). fit wins over clamp.
+    void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false,
+                             bool fit = false, int marginLogical = 0);
 
     // The synth window's current bounds in PHYSICAL pixels (empty if hidden). For the editor's rect readout.
     juce::Rectangle<int> currentSynthWindowPhysical() const;

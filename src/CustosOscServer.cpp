@@ -112,6 +112,10 @@ Command parseCommand (const juce::OSCMessage& msg)
             c.movable = msg[4].getInt32() != 0;
             if (msg.size() >= 6 && msg[5].isInt32())   // clamp optional (back-compat): 1 = config phase
                 c.clamp = msg[5].getInt32() != 0;
+            if (msg.size() >= 7 && msg[6].isInt32())   // fit optional: 1 = fit-into-area (docking)
+                c.fit = msg[6].getInt32() != 0;
+            if (msg.size() >= 8 && msg[7].isInt32())   // margin optional (logical px), only meaningful with fit
+                c.marginLogical = msg[7].getInt32();
             return c;
         }
         return { Command::Unknown, {} };
@@ -320,7 +324,7 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             proc.hideSynthWindow();
             break;
         case Command::WindowRect:
-            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp);
+            proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp, cmd.fit, cmd.marginLogical);
             break;
         case Command::MidiRoute:
         {
