@@ -23,4 +23,13 @@ std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::Fi
 juce::File instrumentsFileIn   (const juce::File& root);           // <root>/instruments.json
 juce::File instrumentsTargetFor (const juce::File& root);          // <root>/... or legacy %APPDATA% if root empty
 bool       writeInstruments    (const juce::File& root, const std::vector<Favorite>& favs);
+
+struct InstrumentsSource { juce::File file; bool fromLegacy = false; bool found = false; };
+
+// First existing of [<root>/instruments.json, legacyCanonical, legacyOld]. Non-empty root required
+// for tier 1. When none exist, found=false and file = the tier-1 target (<root>/instruments.json,
+// or legacyCanonical if root empty).
+InstrumentsSource resolveInstrumentsSource (const juce::File& root,
+                                            const juce::File& legacyCanonical,
+                                            const juce::File& legacyOld);
 }

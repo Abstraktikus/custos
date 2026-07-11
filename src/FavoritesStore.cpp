@@ -90,4 +90,19 @@ std::vector<Favorite> readInstruments (const juce::File& newFile, const juce::Fi
     if (legacyFile.existsAsFile()) return readFavorites (legacyFile);   // one-time migration read
     return {};
 }
+
+InstrumentsSource resolveInstrumentsSource (const juce::File& root,
+                                            const juce::File& legacyCanonical,
+                                            const juce::File& legacyOld)
+{
+    const bool rootValid = root.getFullPathName().isNotEmpty();
+    if (rootValid)
+    {
+        auto tier1 = instrumentsFileIn (root);
+        if (tier1.existsAsFile()) return { tier1, false, true };
+    }
+    if (legacyCanonical.existsAsFile()) return { legacyCanonical, true, true };
+    if (legacyOld.existsAsFile())       return { legacyOld, true, true };
+    return { rootValid ? instrumentsFileIn (root) : legacyCanonical, false, false };
+}
 }
