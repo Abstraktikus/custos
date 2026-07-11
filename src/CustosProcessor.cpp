@@ -717,7 +717,7 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
     refreshEditor();
 }
 
-void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp)
+void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp, bool fit, int marginLogical)
 {
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
     if (synthWindow == nullptr) return;              // no inner / editor-less synth
@@ -725,7 +725,29 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     auto& displays = juce::Desktop::getInstance().getDisplays();
     auto logical = displays.physicalToLogical (juce::Rectangle<int> (x, y, w, h));
 
-    if (clamp)   // config phase: keep the window inside the target display's work area (borders stay reachable)
+    if (fit)   // docking: (x,y,w,h) is an available AREA — fit the editor into it, aspect-preserved + centred
+    {
+        auto avail = logical.reduced (marginLogical);   // leave a frame on all sides
+        auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (synthWindow->getContentComponent());
+        if (ed != nullptr && avail.getWidth() > 0 && avail.getHeight() > 0)
+        {
+            ed->setTransform ({});                       // measure at native scale
+            const int ew = ed->getWidth(), eh = ed->getHeight();
+            if (ew > 0 && eh > 0)
+            {
+                // Largest size preserving the editor's aspect that fits the area (uniform scale; may enlarge).
+                const double s  = juce::jmin ((double) avail.getWidth() / ew, (double) avail.getHeight() / eh);
+                const int    tw = juce::roundToInt (ew * s);
+                const int    th = juce::roundToInt (eh * s);
+                logical = juce::Rectangle<int> (avail.getCentreX() - tw / 2, avail.getCentreY() - th / 2, tw, th);
+            }
+            else
+                logical = avail;   // no natural size known → just take the framed area
+        }
+        else if (avail.getWidth() > 0 && avail.getHeight() > 0)
+            logical = avail;
+    }
+    else if (clamp)   // config phase: keep the window inside the target display's work area (borders stay reachable)
     {
         const auto* disp = displays.getDisplayForRect (logical);
         if (disp == nullptr) disp = displays.getPrimaryDisplay();
@@ -734,6 +756,8 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
 
     synthWindowMovable = movable;
     synthWindow->applyRect (logical, movable);
+    if (fit)                                  // docked into a host UI region (KM SYNTH view): keep it above the
+        synthWindow->setAlwaysOnTop (true);   // host — onTopMode default is Off, so it would fall behind KM otherwise
     updateEditorRectReadout();   // reflect the applied position in the editor fields
     emitWindowRect();            // echo the applied position to KM
 }

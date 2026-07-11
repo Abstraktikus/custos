@@ -169,6 +169,19 @@ TEST_CASE ("parseCommand maps /custos/window/rect optional clamp arg")
     REQUIRE (c2.clamp == false);   // omitted -> no clamp (live)
 }
 
+TEST_CASE ("parseCommand maps /custos/window/rect optional fit + margin args")
+{
+    // x,y,w,h,movable,clamp,fit,margin
+    const auto c = parseCommand (juce::OSCMessage ("/custos/window/rect", 0, 0, 1200, 800, 0, 0, 1, 24));
+    REQUIRE (c.kind == Command::WindowRect);
+    REQUIRE (c.fit == true);
+    REQUIRE (c.marginLogical == 24);
+
+    const auto c2 = parseCommand (juce::OSCMessage ("/custos/window/rect", 0, 0, 1200, 800, 0, 0));
+    REQUIRE (c2.fit == false);        // omitted -> exact placement (no fit)
+    REQUIRE (c2.marginLogical == 0);
+}
+
 TEST_CASE ("buildWindowRect carries N first, then rect and movable")
 {
     const auto m = buildWindowRect (9, 100, 200, 640, 480, true);

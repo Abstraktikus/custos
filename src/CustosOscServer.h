@@ -23,6 +23,9 @@ struct Command
     int rx = 0, ry = 0, rw = 0, rh = 0;   // WindowRect (physical px)
     bool movable = false;                 // WindowRect
     bool clamp = false;                   // WindowRect: constrain to the monitor work area (config phase)
+    bool fit = false;                     // WindowRect: treat the rect as an available area — fit the editor
+                                          //   into it preserving aspect ratio, centred (docking)
+    int marginLogical = 0;                // WindowRect fit: frame (logical px) left on all sides of the area
     std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
     juce::String presetName, presetNewName, rootPath;   // preset verbs
     int presetIndex = -1;                               // PresetSet, or PresetLoad-by-index
