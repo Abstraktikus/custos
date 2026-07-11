@@ -107,10 +107,14 @@ the hardcoded `%APPDATA%` file. If `root` is empty, fall back to the legacy `%AP
 `setPresetRoot` already persists the root and echoes `/custos/preset/root`. Extend it so the
 favourites database follows the switch:
 
-- If `<newroot>/instruments.json` exists → reload favourites from it (`setFavorites`) and emit
-  the favourites feedback so KM/GP see the new set.
-- Else → seed `<newroot>/instruments.json` from the current in-memory favourites (data follows
-  the move).
+- If `<newroot>/instruments.json` exists and parses **non-empty** → adopt it (`setFavorites`).
+  (There is no dedicated favourites-feedback OSC channel; KM re-reads `<root>/instruments.json`
+  directly per the handoff.)
+- If it exists but parses empty/corrupt while in-memory favourites are non-empty → carry the
+  in-memory favourites to the new root instead of blanking them (data safety).
+- Else (no file) → seed `<newroot>/instruments.json` from the current in-memory favourites when
+  non-empty (data follows the move). All these writes go through `persistFavorites`, which
+  surfaces a failure via `/custos/preset/error`.
 
 This ensures switching folders at runtime never blanks the favourites and always carries the
 data along.
