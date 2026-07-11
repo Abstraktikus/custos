@@ -8,7 +8,9 @@
 
 Binding a KM/GP macro to a Custos facade parameter today means knowing the facade index up front. The facade is a stable 5000-slot layer mirroring an arbitrary inner synth, so index 2373 is meaningful but opaque. The natural authoring gesture — "click Learn, wiggle the knob on the synth, done" — needs Custos to report *which inner parameter just moved*, because only Custos sees the hosted synth's parameters.
 
-The hook already exists and is deliberately empty: `CustosProcessor::audioProcessorParameterChanged (inner, index, newValue)` (`CustosProcessor.h:180`) is an overridden no-op, and Custos is already registered as an `AudioProcessorListener` on the inner synth at every load (`CustosProcessor.cpp:99`). Its comment records *why* it is empty: per-value automation changes must not churn the facade binding. This spec keeps that default — the callback stays a no-op **except while a Learn window is open**.
+> **Branch note (corrected during implementation):** an earlier draft of this section claimed the listener hook "already exists" — that was true only on the separate, unmerged branch `fix/rebind-on-late-param-populate`, not on this branch's base (off `master`). On `master`, `CustosProcessor` does **not** inherit `AudioProcessorListener` and does not register on the inner synth. This feature therefore **introduces** the `AudioProcessorListener` inheritance, the `inner->addListener(this)` / `oldInner->removeListener(this)` wiring in `loadInner`, and the `audioProcessorParameterChanged` body. Because there is no `parameterInfoChanged` rebind path on this branch, `audioProcessorChanged` is added as an **empty** override (mandatory, since the base method is pure-virtual). ⚠️ When `fix/rebind-on-late-param-populate` and this branch both land, the merge must **union** to a single listener registration, keep that branch's non-empty `audioProcessorChanged` rebind body, and keep this branch's `audioProcessorParameterChanged`.
+
+Custos captures *which inner parameter just moved* by listening to the inner synth's per-value parameter callback. That callback must stay inert for normal operation (per-value automation must not churn the facade binding), so it does real work **only while a Learn window is open**.
 
 ### Explicitly NOT in this change (KM decisions, 2026-07-11)
 
@@ -57,9 +59,9 @@ KM accumulates the stream and decides: winning `facadeIdx` = largest span (or a 
 
 ## Behaviour details
 
-**Gating.** `audioProcessorParameterChanged` does real work only while `learnActive`; otherwise it returns immediately (the existing `parameterInfoChanged` re-bind path in `audioProcessorChanged` is untouched — Learn only uses the per-value callback).
+**Gating.** `audioProcessorParameterChanged` does real work only while `learnActive`; otherwise it returns immediately. On this branch `audioProcessorChanged` is an empty override (no rebind logic exists here — see the branch note above); Learn only uses the per-value callback. (Capture is further narrowed to message-thread moves — see Threading.)
 
-**Threading.** The per-value callback may fire on the audio thread (host automation) as well as the message thread (GUI). It must not allocate or send OSC. It writes `{innerIdx, float}` into a lock-free single-producer/single-consumer ring; a message-thread timer drains it. All OSC emission happens on the message thread via the existing `outboundSink`.
+**Threading (as shipped).** The per-value callback may fire on the audio thread (host automation / internal LFO) as well as the message thread (GUI edit). Because the ring is single-producer/single-consumer, capture is **gated to the message thread** (`juce::MessageManager::existsAndIsCurrentThread()`): only message-thread moves — the operator turning a knob in the synth's editor — are enqueued; audio-thread-originated changes are dropped. This both keeps the ring single-producer and matches the intent to ignore internal automation/LFO. The callback writes `{innerIdx, float}` into the lock-free ring (no alloc, no OSC); a message-thread timer drains it, and all OSC emission happens on the message thread via `outboundSink`. (Trade-off: a knob move a plugin reports *only* from the audio thread won't be captured — acceptable for this authoring feature.)
 
 **Coalescing & rate.** Drain timer ~25 ms. Within a tick, collapse to the **latest value per index** (a human sweep produces plenty of samples; the operator dwells at the end-stops, so Min/Max are captured without sending every intermediate). Value need not be sample-accurate — this drives display/authoring, not audio.
 

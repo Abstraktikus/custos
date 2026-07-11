@@ -5,7 +5,7 @@ Design rationale: `docs/superpowers/specs/2026-07-04-custos-external-control-con
 **`protoVer = 3`.** Anything not listed here is not part of the contract yet.
 
 Custos is a VST3 instrument that hosts an arbitrary inner synth and mirrors its parameters 1:1 onto a
-fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, window, status, identity) is OSC/MIDI
+fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, window, status, identity, learn) is OSC/MIDI
 — never facade parameters.**
 
 ---
