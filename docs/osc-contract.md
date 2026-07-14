@@ -47,8 +47,8 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/favorites/end` | `count:int` | commit favorites (Custos writes its config) |
 | `/custos/window` | `mode:string` (`show`\|`titled`\|`hide`) | open/close the **inner-synth** window (never the Custos panel). `show` = borderless at natural size; `titled` = native title bar + close; `hide` = close. Once open, the window **persists across loads** and re-shows the newly-loaded synth automatically (so browsing displays each instrument) |
 | `/custos/window/rect` | `x,y,w,h:int, movable:int [, clamp:int [, fit:int [, margin:int]]]` | place the synth window at a **physical-pixel** rect (DPI-mapped); `movable`=body-draggable; `clamp` (optional, default 0) constrains it to the monitor work area for config-phase reachable borders. **`fit`** (optional, default 0): when 1, treat `x,y,w,h` as an available **area** and fit the editor into it preserving aspect ratio, centred, leaving a **`margin`** (optional, logical px, default 0) frame on all sides — used for docking the window into a host UI region. A fit placement also forces the window **always-on-top** (so it stays above the host UI; the window's on-top mode defaults Off). `fit` and `clamp` are mutually exclusive (fit wins). Shows the window if hidden. **Not sticky across loads:** an instrument load/switch recreates the window at natural size with on-top per the on-top mode, so re-send `/custos/window/rect fit=1` after each `/custos/loaded` while docked |
-| `/custos/midi/route` | `t1..t16:int` | set the MIDI channel-routing map: for each **input** channel 1..16 (positional, `t1`=input ch 1), `0` = drop that channel's messages, `1..16` = remap to that **output** channel. Default (unset) is identity (`t_i = i`). Applies live; Custos replies with `/custos/midi/route` echoing the applied map |
-| `/custos/midi/query` | — | → replies `/custos/midi/route` with the current map (no state change) |
+| `/custos/midi/route` | `t1..t16:int` | set the MIDI channel-routing map: for each **input** channel 1..16 (positional, `t1`=input ch 1), `0` = drop that channel's messages, `1..16` = remap to that **output** channel. Default (unset) is identity (`t_i = i`). Applies live; Custos replies with `/custos/midi/route` echoing the applied map (mirrored to KM `:8000` **and** GP `:54344` — see §3) |
+| `/custos/midi/query` | — | → replies `/custos/midi/route` with the current map (no state change). Reply reaches KM `:8000` **and** GP `:54344`, so GP can populate its routing map on song-load without KM |
 | `/custos/instrument/next` | `scope:int` (optional; `0`\|`1`) | advance the favourites cursor +1 (wrap), skipping entries that don't fit `scope`. Reports only the NAME via `/custos/browsing`; **does NOT load** — the synth loads 400 ms after browsing stops. `scope` omitted/`0` = favourites only (`favOrder >= 1`); `1` = all instruments in the machine config |
 | `/custos/instrument/prev` | `scope:int` (optional; `0`\|`1`) | cursor −1 (wrap), same `scope` rule. Same name-report + deferred load |
 | `/custos/instrument/set` | `i:int` | jump the cursor to index `i` (clamped). Same name-report + deferred load. No `scope` arg — `i` is an absolute index into the full instrument list |
@@ -71,15 +71,24 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 ## 3. Custos → KM  (send to `127.0.0.1:8000`; first arg always `N`)
 
 > **GP mirror:** `/custos/browsing`, `/custos/loaded`, `/custos/here`, `/custos/patch/stepped`,
-> `/custos/preset/browsing`, `/custos/preset/loaded`, `/custos/preset/error`, and
-> **error-only** `/custos/ack` (text starting `error`) are additionally sent to **GP's OSC-in
+> `/custos/midi/route`, `/custos/preset/browsing`, `/custos/preset/loaded`, `/custos/preset/error`,
+> and **error-only** `/custos/ack` (text starting `error`) are additionally sent to **GP's OSC-in
 > `127.0.0.1:54344`** (not just the KM hub), so the **GP-Script can drive the Voice-Selector, the patch
-> axis, the preset axis, _and_ direct instrument load autonomously** without KM in the loop: `loaded` =
-> success/ready, `patch/stepped` = patch-axis feedback, `preset/browsing`\|`loaded` = preset-axis
-> feedback, error-`ack`\|`preset/error` = failure, `here` = liveness/discovery.
+> axis, the preset axis, derive its routing map, _and_ direct instrument load autonomously** without KM
+> in the loop: `loaded` = success/ready, `patch/stepped` = patch-axis feedback, `midi/route` = the live
+> channel→synth routing map, `preset/browsing`\|`loaded` = preset-axis feedback,
+> error-`ack`\|`preset/error` = failure, `here` = liveness/discovery.
 > Success acks (`loaded … count=…`, `cleared`, `mode …`) are **not** mirrored (success is already
 > conveyed by `/custos/loaded`), and every other reply — notably the `/custos/param` dump stream —
 > goes to `:8000` only, to avoid flooding GP's OSC-in.
+>
+> **Routing-map derivation (KM-free):** `/custos/midi/route` is mirrored so the GP-Script can derive its
+> HumanRoutingMap (channel→synth) live from Custos' real route instead of maintaining it statically. GP
+> reads only `t_i != 0 ⇒ this synth reacts on input channel i`. The mirror covers both the reply to
+> `/custos/midi/query` (after the on-song populate) and the automatic echo after every `/custos/midi/route`
+> command (see §2), so GP stays synced on every live route change with **no polling** and **no KM in the
+> path**. Writing the route (GP → `/custos/midi/route` at `9100+N`) was always KM-free; this mirror closes
+> the read half so GP is autonomous in both directions.
 
 | Address | Args | Meaning |
 |---|---|---|
@@ -89,7 +98,7 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/params/done` | `N, start:int, count:int` | end of a dump range; `count` = params **actually sent** (clamped to `boundCount`), `start` echoes the request |
 | `/custos/loaded` | `N, path:string, boundCount:int, innerTotal:int` | inner changed (OSC **or** UI); empty path = cleared (`boundCount`/`innerTotal` 0). Carries `boundCount` so KM can dump immediately — no `hello` round-trip. `innerTotal` is the loaded synth's **full** param count, which may exceed `boundCount`/`facadeCap` (top params unbound/uncontrollable) |
 | `/custos/window/rect` | `N, x,y,w,h:int, movable:int` | synth-window position feedback — emitted when the operator **drags** the window (on mouse-up) or when a rect is (re)applied. Physical px. Lets KM capture the operator-chosen geometry for its settings |
-| `/custos/midi/route` | `N, t1..t16:int` | MIDI route feedback — the current input→output channel map; emitted when a `/custos/midi/route` command is applied and in reply to `/custos/midi/query` |
+| `/custos/midi/route` | `N, t1..t16:int` | MIDI route feedback — the current input→output channel map; emitted when a `/custos/midi/route` command is applied and in reply to `/custos/midi/query`. **Mirrored to GP `:54344`** (routing-map derivation, see the GP-mirror note above) |
 | `/custos/mainlr` | `N, on:int` | Main L/R fold feedback — the current flag (`1` = all inner outputs summed onto stereo Out 1, `0` = inner pairs mapped across the 5 buses). Emitted after an applied `/custos/mainlr` set and in reply to `/custos/mainlr/query` |
 | `/custos/learn/started` | `N` | Learn window opened; capture armed |
 | `/custos/learn/moved` | `N, facadeIdx:int, value:float, name:string` | one moved facade parameter (coalesced latest-per-idx, ~25 ms, deadband 0.001); `value` normalised 0..1 |
