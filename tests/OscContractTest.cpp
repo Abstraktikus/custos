@@ -95,6 +95,7 @@ TEST_CASE ("gpMirrorsFeedback mirrors browse/loaded/here + error-acks, not succe
     REQUIRE (gpMirrorsFeedback ("/custos/browsing", {}));
     REQUIRE (gpMirrorsFeedback ("/custos/loaded",   {}));
     REQUIRE (gpMirrorsFeedback ("/custos/here",      {}));           // liveness/discovery
+    REQUIRE (gpMirrorsFeedback ("/custos/midi/route", {}));          // live routing map (query reply + setMidiRoute confirm)
     REQUIRE (gpMirrorsFeedback ("/custos/ack", "error no such file")); // load FAILURE
 
     // ...but NOT success acks (success already conveyed by /custos/loaded):
@@ -106,7 +107,6 @@ TEST_CASE ("gpMirrorsFeedback mirrors browse/loaded/here + error-acks, not succe
     REQUIRE (! gpMirrorsFeedback ("/custos/param",        {}));
     REQUIRE (! gpMirrorsFeedback ("/custos/params/done",  {}));
     REQUIRE (! gpMirrorsFeedback ("/custos/window/rect",  {}));
-    REQUIRE (! gpMirrorsFeedback ("/custos/midi/route",   {}));
 }
 
 TEST_CASE ("parseCommand maps the favourites push")
@@ -206,6 +206,13 @@ TEST_CASE ("buildMidiRoute carries N first, then 16 targets")
     REQUIRE (m[0].getInt32() == 9);
     REQUIRE (m[1].getInt32() == 1);
     REQUIRE (m[16].getInt32() == 16);
+}
+
+TEST_CASE ("gpMirrorsFeedback mirrors /custos/midi/route to GP")
+{
+    // GP derives its HumanRoutingMap live from Custos' real route, so it must receive both
+    // the /custos/midi/query reply and the post-setMidiRoute confirm (both emit /custos/midi/route).
+    REQUIRE (custos::gpMirrorsFeedback ("/custos/midi/route", {}) == true);
 }
 
 TEST_CASE ("buildMainLR carries N first, then the fold flag")
