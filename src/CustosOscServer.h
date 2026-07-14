@@ -38,13 +38,17 @@ Command parseCommand (const juce::OSCMessage& msg);
 
 // GP mirror policy (pure, unit-testable). The GP-Script drives the Voice-Selector AND direct
 // instrument load autonomously (no KM in the loop), so it needs the browse preview, the
-// load-ready signal, instance liveness, and load FAILURES — but not the success acks
-// (/custos/loaded already conveys success) nor the param-dump flood. Everything else stays
-// KM-hub-only. `ackText` is only consulted for /custos/ack (error → mirror).
+// load-ready signal, instance liveness, the live MIDI-routing map, and load FAILURES — but not
+// the success acks (/custos/loaded already conveys success) nor the param-dump flood. Everything
+// else stays KM-hub-only. `ackText` is only consulted for /custos/ack (error → mirror).
+//
+// /custos/midi/route is mirrored so GP can derive its HumanRoutingMap (channel→synth) live from
+// Custos' real route without KM in the loop: it covers both the /custos/midi/query reply and the
+// post-setMidiRoute confirm (CustosOscServer.cpp emitMidiRoute), keeping GP synced with no polling.
 inline bool gpMirrorsFeedback (const juce::String& addr, const juce::String& ackText)
 {
     if (addr == "/custos/browsing" || addr == "/custos/loaded" || addr == "/custos/here"
-        || addr == "/custos/patch/stepped")
+        || addr == "/custos/patch/stepped" || addr == "/custos/midi/route")
         return true;
     if (addr == "/custos/preset/browsing" || addr == "/custos/preset/loaded"
         || addr == "/custos/preset/error")
