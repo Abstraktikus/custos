@@ -34,6 +34,10 @@ public:
     void refresh();
     void updateRectReadout();   // update only the x/y/w/h fields from the live window rect (cheap; drag-safe)
 
+    // Test seams for the preset-name field (prefill-on-load behavior).
+    juce::String presetNameText() const { return presetNameField.getText(); }
+    void setPresetNameText (const juce::String& s) { presetNameField.setText (s, false); }
+
 private:
     void commitIdentity();
     bool footerVisible() const;   // Id+Trace shown when identity unset or explicitly revealed
@@ -91,6 +95,7 @@ private:
     juce::ToggleButton traceToggle { "Trace" };      // runtime host-trace on/off (dimmed debug feature)
 
     std::vector<Favorite> filtered;
+    int  lastPresetNameRev = -1;   // last processor presetNameRevision synced into presetNameField
     bool revealed = false;   // footer (Id+Trace) reveal toggle (double-click Brand)
     int  dividerY = -1;      // y of the hairline before the footer (set in resized, drawn in paint; -1 = hidden)
 
