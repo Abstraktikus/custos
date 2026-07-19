@@ -15,20 +15,22 @@ rem Build the synth-path arg in a variable (handles spaces; avoids cmd paren-blo
 rem Clear the cached synth path when none is given (silent-passthrough deploy).
 set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH=
 if not "%~1"=="" set SYNTHARG=-DCUSTOS_HARDCODED_SYNTH_PATH="%~1"
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug %DEPS% %SYNTHARG%
+rem Release into its own tree: the rig gets optimized builds (a Debug ladder shipped ucrtbased.dll
+rem into GP and slowed the big facades — 2026-07-19 findings), while build\ stays the Debug/test tree.
+cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release %DEPS% %SYNTHARG%
 if errorlevel 1 exit /b 1
 
 set "TARGETS="
 for %%S in (%SIZES%) do set "TARGETS=!TARGETS! Custos%%S_VST3"
-cmake --build build --target !TARGETS!
+cmake --build build-release --target !TARGETS!
 if errorlevel 1 exit /b 2
 
 if not exist "%CUSTOS_DEPLOY_DIR%" mkdir "%CUSTOS_DEPLOY_DIR%"
 for %%S in (%SIZES%) do (
     rem Locate the built VST3 bundle (a directory) under build\ for this rung.
     set "BUNDLE="
-    for /f "delims=" %%D in ('dir /b /s /a:d "build\Custos%%S_artefacts\Custos %%S.vst3" 2^>nul') do set "BUNDLE=%%D"
-    if not defined BUNDLE ( echo ERROR: "Custos %%S.vst3" not found under build\ & exit /b 3 )
+    for /f "delims=" %%D in ('dir /b /s /a:d "build-release\Custos%%S_artefacts\Custos %%S.vst3" 2^>nul') do set "BUNDLE=%%D"
+    if not defined BUNDLE ( echo ERROR: "Custos %%S.vst3" not found under build-release\ & exit /b 3 )
     echo Deploying "Custos %%S.vst3"  -^>  "%CUSTOS_DEPLOY_DIR%\Custos %%S.vst3"
     robocopy "!BUNDLE!" "%CUSTOS_DEPLOY_DIR%\Custos %%S.vst3" /MIR /XF *.ilk *.pdb *.exp /NJH /NJS /NDL /NP /R:2 /W:1 >nul
     if errorlevel 8 ( echo ERROR: robocopy failed for "Custos %%S.vst3" & exit /b 4 )
