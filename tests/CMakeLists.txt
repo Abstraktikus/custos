@@ -28,6 +28,7 @@ add_executable(custos_tests
     MidiRouteMatrixTest.cpp
     AudioBusMapperTest.cpp
     InstrumentBrowserTest.cpp
+    FacadeGuardTest.cpp
     PresetProcessorTest.cpp
     PatchStepTest.cpp
     RebindTest.cpp
