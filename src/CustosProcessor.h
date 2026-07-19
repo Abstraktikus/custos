@@ -241,6 +241,7 @@ private:
         void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
     void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
+    void emitErrorAck (const juce::String& message);        // trace + /custos/ack via outboundSink (mirrors to GP)
     int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
     void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
 

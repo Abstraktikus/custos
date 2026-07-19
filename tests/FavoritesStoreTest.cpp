@@ -209,3 +209,51 @@ TEST_CASE ("loadInstrumentsWithSelfHeal returns empty and seeds nothing when no 
     REQUIRE_FALSE (root.getChildFile ("instruments.json").existsAsFile());   // no seed from nothing
     dir.deleteRecursively();
 }
+
+TEST_CASE ("readInstrumentsChecked flags a source that exists but reads empty (OneDrive hydration)")
+{
+    auto dir = juce::File::createTempFile (""); dir.deleteFile(); dir.createDirectory();
+    auto root  = dir.getChildFile ("root");  root.createDirectory();
+    auto rootF = root.getChildFile ("instruments.json");
+    auto canon = dir.getChildFile ("instruments.json");
+    auto old   = dir.getChildFile ("favorites.json");
+
+    SECTION ("valid root file: data, not suspicious")
+    {
+        writeFavorites (rootF, { { "Good", "C:/g.vst3", 1, 0.0f } });
+        auto r = readInstrumentsChecked (root, canon, old);
+        REQUIRE (r.favs.size() == 1);
+        REQUIRE_FALSE (r.suspiciousEmpty);
+        REQUIRE (r.source == rootF);
+    }
+    SECTION ("root file exists but is empty: suspicious")
+    {
+        rootF.replaceWithText ("");
+        auto r = readInstrumentsChecked (root, canon, old);
+        REQUIRE (r.favs.empty());
+        REQUIRE (r.suspiciousEmpty);
+        REQUIRE (r.source == rootF);
+    }
+    SECTION ("root file exists but is garbage: suspicious")
+    {
+        rootF.replaceWithText ("not json at all");
+        auto r = readInstrumentsChecked (root, canon, old);
+        REQUIRE (r.favs.empty());
+        REQUIRE (r.suspiciousEmpty);
+    }
+    SECTION ("no source anywhere: empty but NOT suspicious (first configuration)")
+    {
+        auto r = readInstrumentsChecked (root, canon, old);
+        REQUIRE (r.favs.empty());
+        REQUIRE_FALSE (r.suspiciousEmpty);
+    }
+    SECTION ("legacy-only valid: data via migration read, not suspicious, self-heal seeds root")
+    {
+        writeFavorites (canon, { { "Legacy", "C:/l.vst3", 1, 0.0f } });
+        auto r = readInstrumentsChecked (root, canon, old);
+        REQUIRE (r.favs.size() == 1);
+        REQUIRE_FALSE (r.suspiciousEmpty);
+        REQUIRE (rootF.existsAsFile());   // same self-heal as loadInstrumentsWithSelfHeal
+    }
+    dir.deleteRecursively();
+}

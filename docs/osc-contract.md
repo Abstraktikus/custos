@@ -157,6 +157,20 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
   install keeps working with no data loss; if a root is set, the legacy data is also self-healed into
   `<root>/instruments.json` once. Until then, repeated boots keep reading the legacy file — this is
   intentional (no silent rewrite of a file KM didn't touch).
+- **Boot DB-read robustness:** if the resolved instruments file EXISTS but yields no entries at boot
+  (cloud-storage placeholder not hydrated yet / sync lock — observed with the OneDrive root), Custos
+  re-reads it every 2 s, up to 5 attempts (each read also re-triggers hydration). Late success acks
+  `instrument DB loaded late: <n> entries (attempt <k>)`; final failure acks
+  `error instrument DB empty: <path>` (error-ack, so it also mirrors to GP `:54344`). The retry stands
+  down silently if favourites arrive another way first (KM push / `setroot` adopt). A missing file
+  (first configuration) stays quiet — that is a legitimate state, not a fault.
+- **Empty browse sets are reported, never silently ignored.** `/custos/instrument/next|prev|set` on an
+  empty instrument list acks `error instrument list empty`. `next|prev` where NO entry passes the
+  scope+fit filter (e.g. scope `0` with zero favourites, or every candidate oversized for this facade)
+  acks `error no browsable instrument (scope <s>, facade <cap>)` — the cursor does not move, no
+  `/custos/browsing` is emitted, and no deferred load is armed. (Previously an exhausted skip loop
+  still emitted `/custos/browsing` with `wrapped=1` for an arbitrary non-matching entry.) Both are
+  error-acks and mirror to GP.
 - **`scope` splits the browse list into favourites vs. everything.** Each pushed entry's `favOrder`
   decides membership: `favOrder >= 1` = a favourite. `/custos/instrument/next|prev` with `scope` omitted
   or `0` cycles favourites only; `scope 1` cycles the full instrument list (favourites and non-favourites

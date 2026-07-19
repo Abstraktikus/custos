@@ -249,8 +249,8 @@ bool CustosProcessor::loadByName (const juce::String& name)
         if (f.name == name)
         {
             const auto r = load (f.path);
-            if (! r.ok && outboundSink)
-                outboundSink (buildAck (identityN, r.message));   // surface guard refusals / load failures (error-acks mirror to GP)
+            if (! r.ok)
+                emitErrorAck (r.message);   // surface guard refusals / load failures (error-acks mirror to GP)
             return true;   // name resolved (success itself is conveyed by /custos/loaded)
         }
     return false;
@@ -272,9 +272,23 @@ void CustosProcessor::traceN (const juce::String& msg) const
 void CustosProcessor::browseInstrument (int delta, int scope)
 {
     const int cnt = (int) favorites.size();
-    if (cnt == 0) return;
-    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
     const int cap = facadeSize();
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
+
+    // No entry passes the scope+fit filter -> say so. The old skip loop would exhaust its tries
+    // and still emit /custos/browsing (wrapped=1) for an arbitrary NON-matching entry — and arm
+    // its deferred load. That silence is how an empty runtime DB stayed invisible on 2026-07-19.
+    bool anyBrowsable = false;
+    for (const auto& f : favorites)
+        if (favouriteFits (f.slots, cap) && favouriteInScope (f.favOrder, scope)) { anyBrowsable = true; break; }
+    if (! anyBrowsable)
+    {
+        emitErrorAck ("error no browsable instrument (scope " + juce::String (scope)
+                      + ", facade " + juce::String (cap) + ")");
+        return;
+    }
+
+    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
     int idx = browseIndex;
     bool wrapped = false;
     for (int tries = 0; tries < cnt; ++tries)   // skip synths that don't fit this facade (e.g. 4000-param in Custos 1000)
@@ -295,7 +309,7 @@ void CustosProcessor::browseInstrument (int delta, int scope)
 void CustosProcessor::setBrowseIndex (int i)
 {
     const int cnt = (int) favorites.size();
-    if (cnt == 0) return;
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
     browseIndex = juce::jlimit (0, cnt - 1, i);
     const auto& f = favorites[(size_t) browseIndex];
     emitBrowsing (browseIndex, f.name, false);
@@ -316,6 +330,12 @@ void CustosProcessor::commitBrowseLoad()
 void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)
 {
     if (outboundSink) outboundSink (buildBrowsing (identityN, index, name, wrapped));
+}
+
+void CustosProcessor::emitErrorAck (const juce::String& message)
+{
+    traceN (message);
+    if (outboundSink) outboundSink (buildAck (identityN, message));   // error-acks mirror to GP :54344
 }
 
 void CustosProcessor::applyVolumeDefault (const juce::String& path)

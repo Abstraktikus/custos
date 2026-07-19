@@ -38,4 +38,13 @@ InstrumentsSource resolveInstrumentsSource (const juce::File& root,
 std::vector<Favorite> loadInstrumentsWithSelfHeal (const juce::File& root,
                                                    const juce::File& legacyCanonical,
                                                    const juce::File& legacyOld);
+
+// Checked variant of the same read: also reports WHICH file was read and whether that file exists
+// yet yielded NO entries (empty/garbage content) — the cloud-placeholder/hydration signature the
+// boot path must retry and report instead of silently running with no favourites and no size guard.
+// A missing source (first configuration) is empty but NOT suspicious.
+struct InstrumentsRead { std::vector<Favorite> favs; bool suspiciousEmpty = false; juce::File source; };
+InstrumentsRead readInstrumentsChecked (const juce::File& root,
+                                        const juce::File& legacyCanonical,
+                                        const juce::File& legacyOld);
 }
