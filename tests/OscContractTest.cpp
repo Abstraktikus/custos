@@ -184,17 +184,21 @@ TEST_CASE ("parseCommand maps /custos/window/rect optional fit + margin args")
     REQUIRE (c2.marginLogical == 0);
 }
 
-TEST_CASE ("buildWindowRect carries N first, then rect and movable")
+TEST_CASE ("buildWindowRect carries N, rect, movable, then the achieved content size")
 {
-    const auto m = buildWindowRect (9, 100, 200, 640, 480, true);
+    // contentW/H > w/h == the GUI is centre-cropped (plugin minimum exceeds the dock area):
+    // KM reads the shortfall from these two trailing args (additive, old readers ignore them).
+    const auto m = buildWindowRect (9, 100, 200, 640, 480, true, 1490, 556);
     REQUIRE (m.getAddressPattern().toString() == "/custos/window/rect");
-    REQUIRE (m.size() == 6);
+    REQUIRE (m.size() == 8);
     REQUIRE (m[0].getInt32() == 9);
     REQUIRE (m[1].getInt32() == 100);
     REQUIRE (m[2].getInt32() == 200);
     REQUIRE (m[3].getInt32() == 640);
     REQUIRE (m[4].getInt32() == 480);
     REQUIRE (m[5].getInt32() == 1);
+    REQUIRE (m[6].getInt32() == 1490);
+    REQUIRE (m[7].getInt32() == 556);
 }
 
 TEST_CASE ("buildMidiRoute carries N first, then 16 targets")

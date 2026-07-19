@@ -229,7 +229,7 @@ bool CustosEditor::footerVisible() const
 
 void CustosEditor::scaleWindow (double factor)
 {
-    const auto r = proc.currentSynthWindowPhysical();
+    const auto r = proc.currentSynthWindowRect();
     if (r.isEmpty()) return;   // no window open
     const int nw = juce::jmax (60, (int) std::lround (r.getWidth()  * factor));
     const int nh = juce::jmax (60, (int) std::lround (r.getHeight() * factor));
@@ -240,7 +240,7 @@ void CustosEditor::scaleWindow (double factor)
 void CustosEditor::updateRectReadout()
 {
     if (! proc.isSynthWindowVisible()) return;
-    const auto rp = proc.currentSynthWindowPhysical();
+    const auto rp = proc.currentSynthWindowRect();
     testX.setText (juce::String (rp.getX()),      juce::dontSendNotification);
     testY.setText (juce::String (rp.getY()),      juce::dontSendNotification);
     testW.setText (juce::String (rp.getWidth()),  juce::dontSendNotification);

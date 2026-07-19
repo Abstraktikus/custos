@@ -894,8 +894,12 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
     if (synthWindow == nullptr) return;              // no inner / editor-less synth
 
+    // Contract 2026-07-19: x,y,w,h arrive as desktop-logical px (DIPs) and are used as
+    // JUCE-logical DIRECTLY — awareness-invariant: under a DPI-unaware host (GP measures as
+    // unaware; JUCE sees scale 1.0) JUCE-logical == virtualized == DIP, under an aware host
+    // JUCE-logical == physical/scale == DIP too. No physicalToLogical mapping.
     auto& displays = juce::Desktop::getInstance().getDisplays();
-    auto logical = displays.physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+    auto logical = juce::Rectangle<int> (x, y, w, h);
 
     if (fit)   // docking: (x,y,w,h) is an available AREA — fit the editor into it, aspect-preserved + centred
     {
@@ -929,17 +933,17 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     }
 
     synthWindowMovable = movable;
-    synthWindow->applyRect (logical, movable);
+    synthWindow->applyRect (logical, movable, /*sticky*/ fit);   // docked fit stays put against editor self-resize
     if (fit)                                  // docked into a host UI region (KM SYNTH view): keep it above the
         synthWindow->setAlwaysOnTop (true);   // host — onTopMode default is Off, so it would fall behind KM otherwise
     updateEditorRectReadout();   // reflect the applied position in the editor fields
     emitWindowRect();            // echo the applied position to KM
 }
 
-juce::Rectangle<int> CustosProcessor::currentSynthWindowPhysical() const
+juce::Rectangle<int> CustosProcessor::currentSynthWindowRect() const
 {
     if (synthWindow == nullptr) return {};
-    return juce::Desktop::getInstance().getDisplays().logicalToPhysical (synthWindow->getBounds());
+    return synthWindow->getBounds();   // DIPs — same unit the /custos/window/rect command uses
 }
 
 void CustosProcessor::updateEditorRectReadout()
@@ -951,8 +955,11 @@ void CustosProcessor::updateEditorRectReadout()
 void CustosProcessor::emitWindowRect()
 {
     if (! outboundSink || synthWindow == nullptr) return;
-    const auto r = currentSynthWindowPhysical();
-    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable));
+    const auto r = currentSynthWindowRect();
+    auto* content = synthWindow->getContentComponent();   // achieved editor size (DIPs): > r = centre-cropped
+    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable,
+                                   content != nullptr ? content->getWidth()  : 0,
+                                   content != nullptr ? content->getHeight() : 0));
 }
 
 void CustosProcessor::hideSynthWindow()
