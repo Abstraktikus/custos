@@ -20,6 +20,11 @@
 
 namespace custos
 {
+// Boot DB retry cadence: reads are cheap and each one re-pokes cloud hydration; ~10 s total
+// covers the OneDrive placeholder case without nagging forever on a genuinely empty file.
+static constexpr int kDbRetryMs  = 2000;
+static constexpr int kDbRetryMax = 5;
+
 Command parseCommand (const juce::OSCMessage& msg)
 {
     const auto addr = msg.getAddressPattern().toString();
@@ -199,8 +204,39 @@ CustosOscServer::CustosOscServer (CustosProcessor& p) : proc (p)
         }
         maybeMirrorToGp (m);      // GP :54344, gated by gpMirrorsFeedback (browse/loaded/here/error-ack)
     };
-    proc.setFavorites (loadInstrumentsWithSelfHeal (juce::File (proc.presetRoot()),
-                                                    instrumentsConfigFile(), favoritesConfigFile()));
+    const auto boot = readInstrumentsChecked (juce::File (proc.presetRoot()),
+                                              instrumentsConfigFile(), favoritesConfigFile());
+    proc.setFavorites (boot.favs);
+    if (boot.suspiciousEmpty)
+    {
+        trace ("boot: instrument DB read empty though present: " + boot.source.getFullPathName());
+        dbRetry.cb = [this] { retryInstrumentsTick(); };
+        dbRetry.startTimer (kDbRetryMs);
+    }
+}
+
+void CustosOscServer::retryInstrumentsTick()
+{
+    if (! proc.getFavorites().empty())   // fixed meanwhile (KM push / setroot adopt) -> stand down
+    {
+        dbRetry.stopTimer();
+        return;
+    }
+    const auto r = readInstrumentsChecked (juce::File (proc.presetRoot()),
+                                           instrumentsConfigFile(), favoritesConfigFile());
+    if (! r.favs.empty())
+    {
+        dbRetry.stopTimer();
+        proc.setFavorites (r.favs);
+        ack ("instrument DB loaded late: " + juce::String ((int) r.favs.size()) + " entries (attempt "
+             + juce::String (dbRetryAttempts + 1) + ")");
+        return;
+    }
+    if (++dbRetryAttempts >= kDbRetryMax)
+    {
+        dbRetry.stopTimer();
+        ack ("error instrument DB empty: " + r.source.getFullPathName());   // error-ack -> also mirrors to GP
+    }
 }
 
 CustosOscServer::~CustosOscServer()

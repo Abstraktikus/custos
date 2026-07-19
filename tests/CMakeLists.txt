@@ -30,6 +30,7 @@ add_executable(custos_tests
     AudioBusMapperTest.cpp
     InstrumentBrowserTest.cpp
     FacadeGuardTest.cpp
+    BrowseFeedbackTest.cpp
     PresetProcessorTest.cpp
     PatchStepTest.cpp
     RebindTest.cpp

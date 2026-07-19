@@ -85,6 +85,15 @@ private:
     bool gpReady  = false;
     int  currentN = 0;
 
+    // Boot instrument-DB retry: the resolved instruments.json can EXIST yet read empty at GP boot
+    // (cloud placeholder not hydrated / sync lock). Silently accepting that leaves the whole rig
+    // without favourites AND without the facade size guard, so re-read a few times and say what
+    // happened either way. Each read attempt itself re-triggers OneDrive hydration.
+    void retryInstrumentsTick();
+    struct RetryTimer final : juce::Timer { std::function<void()> cb;
+        void timerCallback() override { if (cb) cb(); } } dbRetry;
+    int dbRetryAttempts = 0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosOscServer)
 };
 }

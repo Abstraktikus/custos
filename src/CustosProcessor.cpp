@@ -125,14 +125,18 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
 CommandResult CustosProcessor::load (const juce::String& path)
 {
-    // Facade guard: refuse a list-known oversized synth BEFORE the heavy instantiation. The load
-    // runs synchronously on the message thread every instance's OSC shares — a big synth that
-    // stalls there freezes them all (2026-07-19 GP AppHang). slots <= 0 (unknown) stays loadable:
-    // an empty/unpushed DB must not block loads.
+    const Favorite* entry = nullptr;
     for (const auto& f : favorites)
-        if (f.path == path && ! favouriteFits (f.slots, facadeSize()))
-            return { false, boundCount, "error instrument too large (slots " + juce::String (f.slots)
-                                        + " > facade " + juce::String (facadeSize()) + ")" };
+        if (f.path == path) { entry = &f; break; }
+
+    // Facade guard: refuse a list-known grossly-oversized synth BEFORE the heavy instantiation.
+    // The load runs synchronously on the message thread every instance's OSC shares — a big synth
+    // that stalls there freezes them all (2026-07-19 GP AppHang). favouriteFits tolerates up to
+    // 10% overshoot (warned below); slots <= 0 (unknown) stays loadable: an empty/unpushed DB
+    // must not block loads.
+    if (entry != nullptr && ! favouriteFits (entry->slots, facadeSize()))
+        return { false, boundCount, "error instrument too large (slots " + juce::String (entry->slots)
+                                    + " > facade " + juce::String (facadeSize()) + ")" };
 
     // Idempotent load: if this exact synth is already loaded, DON'T re-instantiate it. GP restores
     // the persisted inner on gig-open and GP-Script re-sends the song's synths, so a reload request
@@ -144,6 +148,13 @@ CommandResult CustosProcessor::load (const juce::String& path)
         emitLoaded();
         return { true, boundCount, "already loaded " + path };
     }
+
+    // Tolerated oversize (within the 10% band): proceed, but say so — once per real load, not on
+    // the idempotent re-ack above. The top (slots - facade) params stay unbound (binding clamps).
+    if (entry != nullptr && entry->slots > facadeSize())
+        emitErrorAck ("warning instrument oversized (slots " + juce::String (entry->slots)
+                      + " > facade " + juce::String (facadeSize()) + ", "
+                      + juce::String (entry->slots - facadeSize()) + " params unbound)");
 
     const double sr    = preparedSampleRate > 0.0 ? preparedSampleRate : 44100.0;
     const int    block = preparedBlockSize  > 0   ? preparedBlockSize  : 512;
@@ -250,8 +261,8 @@ bool CustosProcessor::loadByName (const juce::String& name)
         if (f.name == name)
         {
             const auto r = load (f.path);
-            if (! r.ok && outboundSink)
-                outboundSink (buildAck (identityN, r.message));   // surface guard refusals / load failures (error-acks mirror to GP)
+            if (! r.ok)
+                emitErrorAck (r.message);   // surface guard refusals / load failures (error-acks mirror to GP)
             return true;   // name resolved (success itself is conveyed by /custos/loaded)
         }
     return false;
@@ -273,9 +284,23 @@ void CustosProcessor::traceN (const juce::String& msg) const
 void CustosProcessor::browseInstrument (int delta, int scope)
 {
     const int cnt = (int) favorites.size();
-    if (cnt == 0) return;
-    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
     const int cap = facadeSize();
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
+
+    // No entry passes the scope+fit filter -> say so. The old skip loop would exhaust its tries
+    // and still emit /custos/browsing (wrapped=1) for an arbitrary NON-matching entry — and arm
+    // its deferred load. That silence is how an empty runtime DB stayed invisible on 2026-07-19.
+    bool anyBrowsable = false;
+    for (const auto& f : favorites)
+        if (favouriteFits (f.slots, cap) && favouriteInScope (f.favOrder, scope)) { anyBrowsable = true; break; }
+    if (! anyBrowsable)
+    {
+        emitErrorAck ("error no browsable instrument (scope " + juce::String (scope)
+                      + ", facade " + juce::String (cap) + ")");
+        return;
+    }
+
+    if (browseIndex < 0) browseIndex = indexOfPath (currentSynthPath);   // seed from the loaded synth
     int idx = browseIndex;
     bool wrapped = false;
     for (int tries = 0; tries < cnt; ++tries)   // skip synths that don't fit this facade (e.g. 4000-param in Custos 1000)
@@ -296,7 +321,7 @@ void CustosProcessor::browseInstrument (int delta, int scope)
 void CustosProcessor::setBrowseIndex (int i)
 {
     const int cnt = (int) favorites.size();
-    if (cnt == 0) return;
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
     browseIndex = juce::jlimit (0, cnt - 1, i);
     const auto& f = favorites[(size_t) browseIndex];
     emitBrowsing (browseIndex, f.name, false);
@@ -317,6 +342,12 @@ void CustosProcessor::commitBrowseLoad()
 void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)
 {
     if (outboundSink) outboundSink (buildBrowsing (identityN, index, name, wrapped));
+}
+
+void CustosProcessor::emitErrorAck (const juce::String& message)
+{
+    traceN (message);
+    if (outboundSink) outboundSink (buildAck (identityN, message));   // error-acks mirror to GP :54344
 }
 
 void CustosProcessor::applyVolumeDefault (const juce::String& path)

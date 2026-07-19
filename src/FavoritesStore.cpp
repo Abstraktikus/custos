@@ -110,11 +110,21 @@ std::vector<Favorite> loadInstrumentsWithSelfHeal (const juce::File& root,
                                                    const juce::File& legacyCanonical,
                                                    const juce::File& legacyOld)
 {
+    return readInstrumentsChecked (root, legacyCanonical, legacyOld).favs;
+}
+
+InstrumentsRead readInstrumentsChecked (const juce::File& root,
+                                        const juce::File& legacyCanonical,
+                                        const juce::File& legacyOld)
+{
     const auto src = resolveInstrumentsSource (root, legacyCanonical, legacyOld);
-    if (! src.found) return {};
-    auto favs = readFavorites (src.file);
-    if (src.fromLegacy && root.getFullPathName().isNotEmpty() && ! favs.empty())
-        writeInstruments (root, favs);      // self-heal seed into the backup-friendly root
-    return favs;
+    InstrumentsRead r;
+    r.source = src.file;
+    if (! src.found) return r;              // nothing configured yet -> empty, not suspicious
+    r.favs = readFavorites (src.file);
+    r.suspiciousEmpty = r.favs.empty();     // the file is there but yields nothing -> retry-worthy
+    if (src.fromLegacy && root.getFullPathName().isNotEmpty() && ! r.favs.empty())
+        writeInstruments (root, r.favs);    // self-heal seed into the backup-friendly root
+    return r;
 }
 }
