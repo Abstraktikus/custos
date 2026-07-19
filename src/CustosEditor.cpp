@@ -60,15 +60,17 @@ CustosEditor::CustosEditor (CustosProcessor& p)
     addAndMakeVisible (presetNameField);
     savePresetButton.onClick = [this]
     {
+        // The name stays in the field after saving (prefilled = one-click update of the loaded preset);
+        // the processor's refreshEditor() covers the list rebuild + field sync.
         const auto name = presetNameField.getText().trim();
-        if (name.isNotEmpty()) { proc.savePreset (name); presetNameField.clear(); rebuildPresetList(); }
+        if (name.isNotEmpty()) proc.savePreset (name);
     };
     addAndMakeVisible (savePresetButton);
     deletePresetButton.setColour (juce::TextButton::buttonColourId, theme::danger.withAlpha (0.85f));
     deletePresetButton.onClick = [this]
     {
         const auto name = presetPicker.getText();   // the selected preset's name ("" if none selected)
-        if (name.isNotEmpty()) { proc.deletePreset (name); rebuildPresetList(); }
+        if (name.isNotEmpty()) proc.deletePreset (name);   // its refreshEditor() rebuilds the list
     };
     addAndMakeVisible (deletePresetButton);
 
@@ -189,6 +191,15 @@ void CustosEditor::refresh()
     rebuildInstrumentList();
     rebuildPresetList();
 
+    // Prefill the name field with the loaded/saved preset so Save = one-click update. Sync only when
+    // the processor's revision moved (a load/save/rename/delete/swap EVENT — incl. a same-name reload),
+    // so a half-typed save-as-new name is never clobbered by unrelated refreshes.
+    if (const int rev = proc.presetNameRevision(); rev != lastPresetNameRev)
+    {
+        presetNameField.setText (proc.loadedPresetName(), false);
+        lastPresetNameRev = rev;
+    }
+
     // Reflect the current route map into the selectors (identity by default, or whatever KM/state set).
     const auto routeIds = itemIdsFromRoute (proc.getMidiRoute());
     for (int i = 0; i < 16; ++i)
@@ -267,8 +278,14 @@ void CustosEditor::rebuildInstrumentList()
 void CustosEditor::rebuildPresetList()
 {
     presetPicker.clear (juce::dontSendNotification);   // clear() alone does not fire onChange
-    int id = 1;
-    for (const auto& n : proc.listPresets()) presetPicker.addItem (n, id++);
+    const auto cur = proc.loadedPresetName();
+    int id = 1, selId = 0;
+    for (const auto& n : proc.listPresets())
+    {
+        if (n == cur) selId = id;   // keep the picker showing the loaded/saved preset across rebuilds
+        presetPicker.addItem (n, id++);
+    }
+    presetPicker.setSelectedId (selId, juce::dontSendNotification);   // 0 = none
 }
 
 void CustosEditor::gatherRouteFromBoxes()

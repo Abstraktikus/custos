@@ -132,6 +132,11 @@ public:
     bool renamePreset (const juce::String& oldName, const juce::String& newName);  // emits renamed/error
     bool deletePreset (const juce::String& name);                                  // emits deleted/error
 
+    // The preset last loaded or saved for the current synth ("" = none); the revision bumps on every
+    // (re)assignment — incl. a same-name reload — so the editor can re-sync its name field on events.
+    juce::String loadedPresetName() const { return currentPresetName; }
+    int presetNameRevision() const noexcept { return presetNameRev; }
+
     void presetNext();               // cursor +1 (wrap): preview browsing now, debounced load
     void presetPrev();               // cursor -1 (wrap)
     void presetSet (int index);      // absolute index: immediate load
@@ -245,6 +250,9 @@ private:
     void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
 
     int presetCursor = -1;                  // cursor into listPresets(); -1 = unset
+    juce::String currentPresetName;         // last loaded/saved preset ("" = none); see loadedPresetName()
+    int presetNameRev = 0;                  // bumped by setCurrentPresetName (drives the editor's field sync)
+    void setCurrentPresetName (const juce::String& n) { currentPresetName = n; ++presetNameRev; }
     DebounceTimer presetDebounce;           // reuse the browse debounce struct type
     void stepPreset (int delta);            // shared next/prev cursor + preview + arm debounce
     void commitPresetLoad();                // debounce fired -> load the cursor

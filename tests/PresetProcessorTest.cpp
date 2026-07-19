@@ -403,3 +403,56 @@ TEST_CASE ("setPresetRoot surfaces a failed config-file persist")
     REQUIRE (sawError);
     root.deleteRecursively();
 }
+
+TEST_CASE ("loadedPresetName tracks save/load/rename/delete and clears on synth swap")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+
+    REQUIRE (proc.loadedPresetName().isEmpty());
+
+    proc.savePreset ("A");
+    REQUIRE (proc.loadedPresetName() == "A");
+    proc.savePreset ("B");                       // save-as-new makes the new preset current
+    REQUIRE (proc.loadedPresetName() == "B");
+    proc.savePreset ("///");                     // sanitizes to "" -> error, current unchanged
+    REQUIRE (proc.loadedPresetName() == "B");
+
+    REQUIRE (proc.loadPresetByName ("A"));
+    REQUIRE (proc.loadedPresetName() == "A");
+    REQUIRE_FALSE (proc.loadPresetByName ("nope"));   // failed load leaves current alone
+    REQUIRE (proc.loadedPresetName() == "A");
+
+    REQUIRE (proc.renamePreset ("A", "C"));      // rename of the current preset follows
+    REQUIRE (proc.loadedPresetName() == "C");
+    REQUIRE (proc.renamePreset ("B", "D"));      // rename of another preset doesn't
+    REQUIRE (proc.loadedPresetName() == "C");
+
+    REQUIRE (proc.deletePreset ("D"));           // delete of another preset doesn't clear
+    REQUIRE (proc.loadedPresetName() == "C");
+    REQUIRE (proc.deletePreset ("C"));           // delete of the current preset clears
+    REQUIRE (proc.loadedPresetName().isEmpty());
+
+    proc.savePreset ("E");
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());   // synth swap
+    REQUIRE (proc.loadedPresetName().isEmpty());
+    root.deleteRecursively();
+}
+
+TEST_CASE ("presetNameRevision bumps on every assignment, including a same-name reload")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+
+    proc.savePreset ("A");
+    const int afterSave = proc.presetNameRevision();
+    REQUIRE (proc.loadPresetByName ("A"));       // same name, but a new event
+    REQUIRE (proc.presetNameRevision() > afterSave);
+    root.deleteRecursively();
+}

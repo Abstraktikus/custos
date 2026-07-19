@@ -109,6 +109,7 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
     resizeInnerScratch();   // match the new inner's channel count (multi-out safe)
     browseIndex = -1;       // any load re-syncs the browse cursor to the loaded synth
     presetCursor = -1;      // ...and the preset recall cursor re-seeds to the new synth
+    setCurrentPresetName ({});   // a synth swap orphans the loaded-preset marker
     currentSynthPath = (inner != nullptr) ? path : juce::String();
 
     if (inner != nullptr)   // re-show the window with the NEW synth (so browsing displays each instrument)
@@ -624,8 +625,10 @@ int CustosProcessor::savePreset (const juce::String& name)
     p.innerState = captureInnerState();
     if (! custos::savePreset (juce::File (presetRootPath), p)) { emitPresetError ("write failed"); return -1; }
 
+    setCurrentPresetName (name);   // the saved preset (new or overwritten) is now the current one
     const int idx = indexOfPreset (name);
     emitPreset ("saved", name, idx);
+    refreshEditor();               // OSC saves must also reach the editor's picker + name field
     return idx;
 }
 
@@ -641,7 +644,9 @@ bool CustosProcessor::loadPresetByName (const juce::String& name)
     // hand-edited/corrupt file, not the spec's cross-synth load path (which can't reach here).
     if (p.classId != key) { emitPresetError ("preset belongs to another synth"); return false; }
     restoreInnerState (p.innerState);
+    setCurrentPresetName (name);
     emitPreset ("loaded", name, indexOfPreset (name));
+    refreshEditor();   // prefill the editor's name field so Save = one-click update
     return true;
 }
 
@@ -659,7 +664,9 @@ bool CustosProcessor::renamePreset (const juce::String& oldName, const juce::Str
     if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
     if (! custos::renamePreset (juce::File (presetRootPath), key, oldName, newName))
         { emitPresetError ("rename failed"); return false; }
+    if (oldName == currentPresetName) setCurrentPresetName (newName);   // the marker follows a rename
     emitPreset ("renamed", newName, indexOfPreset (newName));
+    refreshEditor();
     return true;
 }
 
@@ -669,7 +676,9 @@ bool CustosProcessor::deletePreset (const juce::String& name)
     if (key.isEmpty()) { emitPresetError ("no synth loaded"); return false; }
     if (! custos::deletePreset (juce::File (presetRootPath), key, name))
         { emitPresetError ("delete failed"); return false; }
+    if (name == currentPresetName) setCurrentPresetName ({});   // deleting the current preset orphans it
     emitPreset ("deleted", name, -1);
+    refreshEditor();
     return true;
 }
 
