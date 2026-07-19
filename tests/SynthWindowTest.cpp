@@ -1,15 +1,22 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <vector>
 #include "SynthWindow.h"
 #include "FakeInnerProcessor.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
 using namespace custos;
 
+// Dock-fit behaviour against the THREE editor personalities seen live (2026-07-19):
+//  - compliant (JD-800): accepts the polite setSize -> identity placement, pixel-sharp.
+//  - clamping (TR-909, Jup-8000): reports resizable but snaps back to its fixed size; a JUCE
+//    AffineTransform cannot scale these (native child HWND renders at its own size) -> the
+//    window must negotiate: one IPlugView content-scale attempt, else centre the visible region.
+//  - scale-honouring: accepts setScaleFactor (setContentScaleFactor) and re-renders smaller.
+
 namespace
 {
-// A hosted editor we can tell to "settle" back to its natural size after the window has
-// fitted it — reproducing the init / preset-load self-resize that undid the dock fit.
+// Accepts any size; can later "settle" back to natural (async re-assert ~20 ms after a fit).
 struct FakeHostedEditor : juce::AudioProcessorEditor
 {
     FakeHostedEditor (juce::AudioProcessor& p, bool resizable, int natW, int natH)
@@ -19,7 +26,37 @@ struct FakeHostedEditor : juce::AudioProcessorEditor
         setSize (natW, natH);
     }
     void settleToNatural() { setSize (naturalW, naturalH); }   // simulate the hosted synth's self-resize
+    void setScaleFactor (float f) override { scaleCalls.push_back (f); }   // base: record, ignore
     int naturalW, naturalH;
+    std::vector<float> scaleCalls;
+};
+
+// Synchronously snaps back to natural whenever any other size is imposed (fixed-zoom GUI).
+struct ClampingEditor : FakeHostedEditor
+{
+    using FakeHostedEditor::FakeHostedEditor;
+    void resized() override
+    {
+        if (! snapping && (getWidth() != naturalW || getHeight() != naturalH))
+        {
+            const juce::ScopedValueSetter<bool> guard (snapping, true);
+            setSize (naturalW, naturalH);
+        }
+    }
+    bool snapping = false;
+};
+
+// Clamps like above, but honours a content-scale factor by re-rendering (resizing) to natural*f
+// — the shape of JUCE's VST3PluginWindow::setScaleFactor (setContentScaleFactor + resizeToFit).
+struct ScaleHonouringEditor : ClampingEditor
+{
+    using ClampingEditor::ClampingEditor;
+    void setScaleFactor (float f) override
+    {
+        scaleCalls.push_back (f);
+        const juce::ScopedValueSetter<bool> guard (snapping, true);   // scaled size is now "natural"
+        setSize (juce::roundToInt ((float) naturalW * f), juce::roundToInt ((float) naturalH * f));
+    }
 };
 }
 
@@ -35,7 +72,7 @@ TEST_CASE ("Sticky fit holds when the hosted editor settles back to its natural 
     REQUIRE (win.getBounds() == fitTo);
 
     // The hosted synth now resizes itself to natural (init / preset-load). A non-sticky
-    // window would follow it down to 396x149; the sticky fit must re-impose fitTo instead.
+    // window would follow it down to 396x149; the sticky fit must keep the window pinned.
     ed->settleToNatural();
     REQUIRE (win.getBounds() == fitTo);
 
@@ -44,32 +81,7 @@ TEST_CASE ("Sticky fit holds when the hosted editor settles back to its natural 
     REQUIRE (win.getBounds() == fitTo);
 }
 
-TEST_CASE ("Sticky re-impose never fights the editor: achieved size kept, scaled into the fit")
-{
-    // Live 2026-07-19 (TR-909 N=10, JD-800 N=9): "resizable" Roland/Arturia editors accept
-    // setSize, then re-assert their preferred size ~20 ms later — re-imposing setSize would
-    // ping-pong forever and the window ended up following the editor out of the dock. The fix:
-    // on a content self-resize under sticky fit, ADOPT the achieved editor size and scale it
-    // uniformly (aspect-preserved, centred) into the fit rect; the window stays pinned.
-    juce::ScopedJuceInitialiser_GUI juceInit;
-    test::FakeInnerProcessor proc;
-    auto* ed = new FakeHostedEditor (proc, /*resizable*/ true, /*nat*/ 396, 149);
-    SynthWindow win (ed);
-
-    const juce::Rectangle<int> fitTo (100, 100, 1200, 452);
-    win.applyRect (fitTo, false, /*sticky*/ true);
-
-    ed->settleToNatural();               // the editor re-asserts 396x149 (refuses the fitted size)
-    REQUIRE (win.getBounds() == fitTo);  // window pinned at the fit rect...
-    REQUIRE (ed->getWidth()  == 396);    // ...and the editor KEEPS its size — no setSize fight
-    REQUIRE (ed->getHeight() == 149);
-    const auto t = ed->getTransform();
-    const float s = juce::jmin (1200.0f / 396.0f, 452.0f / 149.0f);   // window-border slack -> loose tolerance
-    REQUIRE (std::abs (t.mat00 - s) < 0.05f);   // uniform scale fits the achieved size into the rect
-    REQUIRE (std::abs (t.mat11 - t.mat00) < 0.001f);   // ...and IS uniform (no stretch)
-}
-
-TEST_CASE ("A compliant resizable editor stays pixel-sharp: identity transform after the fit")
+TEST_CASE ("A compliant resizable editor stays pixel-sharp: no scale calls, size taken")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     test::FakeInnerProcessor proc;
@@ -78,21 +90,83 @@ TEST_CASE ("A compliant resizable editor stays pixel-sharp: identity transform a
 
     win.applyRect ({ 0, 0, 800, 600 }, false, /*sticky*/ true);
     REQUIRE (std::abs (ed->getWidth() - 800) <= 2);   // editor accepted the size (window border slack)
-    REQUIRE (ed->getTransform().isIdentity());        // no scaling layered on top -> pixel-sharp
+    REQUIRE (ed->scaleCalls.empty());                 // no content-scale negotiation needed
 }
 
-TEST_CASE ("A non-resizable editor is scaled uniformly and centred, never stretched")
+TEST_CASE ("A clamping editor that ignores content scale is clip-centred, window pinned")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     test::FakeInnerProcessor proc;
-    auto* ed = new FakeHostedEditor (proc, /*resizable*/ false, /*nat*/ 400, 300);
+    auto* ed = new ClampingEditor (proc, /*resizable*/ true, /*nat*/ 1490, 556);
+    SynthWindow win (ed);
+
+    const juce::Rectangle<int> fitTo (100, 150, 748, 280);   // content area 746x278
+    win.applyRect (fitTo, false, /*sticky*/ true);
+
+    REQUIRE (win.getBounds() == fitTo);      // pinned regardless
+    REQUIRE (ed->getWidth()  == 1490);       // clamped back — we do not fight it
+    REQUIRE (ed->getHeight() == 556);
+
+    // One scale attempt (~0.5) was made and, unhonoured, rolled back to 1.
+    REQUIRE (ed->scaleCalls.size() == 2);
+    REQUIRE (std::abs (ed->scaleCalls[0] - 0.5f) < 0.05f);
+    REQUIRE (std::abs (ed->scaleCalls[1] - 1.0f) < 0.001f);
+
+    // The visible region is the MIDDLE of the GUI: symmetric clip -> negative origin.
+    const auto pos = ed->getPosition();
+    REQUIRE (std::abs (pos.x - (1 + (746 - 1490) / 2)) <= 2);
+    REQUIRE (std::abs (pos.y - (1 + (278 - 556) / 2)) <= 2);
+}
+
+TEST_CASE ("A scale-honouring editor re-renders smaller and fits the dock")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    test::FakeInnerProcessor proc;
+    auto* ed = new ScaleHonouringEditor (proc, /*resizable*/ true, /*nat*/ 1490, 556);
+    SynthWindow win (ed);
+
+    const juce::Rectangle<int> fitTo (100, 150, 748, 280);   // content area 746x278
+    win.applyRect (fitTo, false, /*sticky*/ true);
+
+    REQUIRE (win.getBounds() == fitTo);
+    REQUIRE (! ed->scaleCalls.empty());
+    REQUIRE (std::abs (ed->scaleCalls.back() - 0.5f) < 0.05f);   // attempt honoured, NOT rolled back
+    REQUIRE (ed->getWidth()  <= 748);                            // re-rendered into the area
+    REQUIRE (ed->getHeight() <= 280);
+    REQUIRE (ed->getPosition().x >= 0);                          // fits -> no clip offset
+}
+
+TEST_CASE ("An async re-assert after an accepted fit negotiates once, then clip-centres")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    test::FakeInnerProcessor proc;
+    auto* ed = new FakeHostedEditor (proc, /*resizable*/ true, /*nat*/ 1490, 556);
+    SynthWindow win (ed);
+
+    const juce::Rectangle<int> fitTo (100, 150, 748, 280);
+    win.applyRect (fitTo, false, /*sticky*/ true);   // fake ACCEPTS 746x278 (like the live wrapper)
+
+    ed->settleToNatural();                           // ~20 ms later: plugin re-asserts 1490x556
+    REQUIRE (win.getBounds() == fitTo);              // pinned
+    REQUIRE (ed->getWidth() == 1490);                // adopted, not fought
+    REQUIRE (! ed->scaleCalls.empty());              // the scale attempt happened on the re-assert
+    REQUIRE (ed->getPosition().x < 0);               // clip-centred (middle of the GUI visible)
+}
+
+TEST_CASE ("An achieved size smaller than the area is letterboxed (centred, unscaled)")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    test::FakeInnerProcessor proc;
+    auto* ed = new ClampingEditor (proc, /*resizable*/ false, /*nat*/ 400, 150);
     SynthWindow win (ed);
 
     win.applyRect ({ 0, 0, 800, 300 }, false, /*sticky*/ false);
-    const auto t = ed->getTransform();
-    REQUIRE (std::abs (t.mat00 - 1.0f) < 0.02f);       // uniform: min(~800/400, ~300/300) = ~1
-    REQUIRE (std::abs (t.mat11 - t.mat00) < 0.001f);   // NOT the old anisotropic fill (x2 wide)
-    REQUIRE (std::abs (t.mat02 - 200.0f) < 4.0f);      // centred horizontally in the rect (border slack)
+    REQUIRE (ed->getWidth()  == 400);                       // untouched (non-resizable, fits)
+    REQUIRE (ed->getHeight() == 150);
+    const auto pos = ed->getPosition();
+    REQUIRE (std::abs (pos.x - 200) <= 2);                  // centred in the 798x298 content area
+    REQUIRE (std::abs (pos.y - 75)  <= 2);
+    REQUIRE (ed->scaleCalls.empty());                       // fits -> no negotiation
 }
 
 TEST_CASE ("A non-sticky window still follows content-driven resizes (synth zoom)")

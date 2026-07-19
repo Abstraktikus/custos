@@ -12,9 +12,12 @@ public:
     explicit SynthWindow (juce::Component* editor);   // takes ownership of the editor (content)
 
     void setDraggable (bool shouldBeDraggable) noexcept { draggable = shouldBeDraggable; }
-    // Place the window at the rect and fit the editor into it: one polite setSize when it reports
-    // resizable, then layoutContent() scales the ACHIEVED size uniformly (aspect-preserved,
-    // centred) — editors that clamp/refuse sizes are never fought over (no setSize ping-pong).
+    // Place the window at the rect and NEGOTIATE the editor into it: one polite setSize when it
+    // reports resizable; if the achieved size stays oversized, ONE content-scale attempt
+    // (setScaleFactor → VST3 setContentScaleFactor — honouring plugins re-render smaller); else
+    // the achieved size is centred as-is (letterbox, or symmetric clip when the plugin's minimum
+    // exceeds the area). Editors are never fought over sizes (no setSize ping-pong), and never
+    // transform-scaled: hosted editors are native child HWNDs that ignore JUCE transforms.
     // sticky=true (docking/fit) keeps this rect against the hosted editor's own later resizes
     // (init/settle/preset-load) instead of following it back to natural size. sticky=false (plain
     // move / undock) restores the default resize-to-fit-content behaviour (synth-zoom follows).
@@ -38,10 +41,14 @@ private:
     bool inLayout     = false;   // inside layoutContent() → its own move/transform callbacks are swallowed
     bool fitActive    = false;   // a sticky (docked) fit is in force → re-pin it when the content self-resizes
     juce::Rectangle<int> fitLogical;   // the rect to re-pin while fitActive
+    bool  scaleAttempted     = false;  // ONE content-scale attempt per applyRect (spent here or on a re-assert)
+    float appliedContentScale = 1.0f;  // last honoured setScaleFactor (reset at each new negotiation)
 
-    // Position/scale the editor within the window WITHOUT resizing it: identity + default placement
-    // when its size matches the content area (within layout rounding), else a uniform centred
-    // AffineTransform fit of the achieved size. Replaces ResizableWindow's force-sizing layout.
+    juce::Rectangle<int> contentArea() const;      // window-local bounds minus the border
+    void negotiateContentSize (bool politeResize); // resize ask (optional) + the scale attempt / rollback
+    // Position the editor within the window WITHOUT resizing or transforming it: default placement
+    // when its size matches the content area (within layout rounding), else centred as-is
+    // (letterbox / symmetric clip). Replaces ResizableWindow's force-sizing layout.
     void layoutContent();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SynthWindow)

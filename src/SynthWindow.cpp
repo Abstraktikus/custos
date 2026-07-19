@@ -11,30 +11,75 @@ SynthWindow::SynthWindow (juce::Component* editor)
     setVisible (true);
 }
 
+static bool fitsWithin (int ew, int eh, juce::Rectangle<int> area)
+{
+    return ew <= area.getWidth() + 2 && eh <= area.getHeight() + 2;   // +-2: window-border layout slack
+}
+
+juce::Rectangle<int> SynthWindow::contentArea() const
+{
+    return getContentComponentBorder().subtractedFrom (getLocalBounds());
+}
+
 void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable, bool sticky)
 {
-    const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // resized()/childBoundsChanged() won't re-fit or re-emit
-    draggable  = movable;
-    // Remember (or release) the sticky fit. While active, childBoundsChanged() keeps the window
-    // pinned to this rect whenever the hosted editor resizes itself (init/settle/preset-load).
-    fitActive  = sticky;
-    fitLogical = logical;
+    const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // resized()/childBoundsChanged() won't re-emit
+    draggable      = movable;
+    fitActive      = sticky;
+    fitLogical     = logical;
+    scaleAttempted = false;    // each apply may spend ONE content-scale attempt (here or on a re-assert)
 
-    if (auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent()))
-        if (ed->isResizable())
+    setBounds (logical);          // pin first: the content area derives from the real bounds
+    negotiateContentSize (true);  // polite resize + (on synchronous refusal) the scale attempt
+    layoutContent();
+}
+
+void SynthWindow::negotiateContentSize (bool politeResize)
+{
+    auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent());
+    if (ed == nullptr) return;
+    const auto area = contentArea();
+    if (area.isEmpty()) return;
+
+    if (appliedContentScale != 1.0f)   // fresh baseline for a new negotiation
+    {
+        ed->setScaleFactor (1.0f);
+        appliedContentScale = 1.0f;
+    }
+
+    if (politeResize && ed->isResizable())
+    {
+        // ONE polite ask at the exact content size. Editors that report resizable but clamp to
+        // fixed zoom steps (Roland, Arturia — live 2026-07-19) snap back synchronously or
+        // re-assert their preferred size ~20 ms later; both paths land below / in
+        // childBoundsChanged. Never ask twice — that ping-pongs.
+        ed->setTransform ({});
+        ed->setSize (area.getWidth(), area.getHeight());
+    }
+
+    if (fitsWithin (ed->getWidth(), ed->getHeight(), area)) return;
+
+    // Oversized: ONE content-scale attempt (VST3 IPlugView setContentScaleFactor via the JUCE
+    // hosting wrapper's setScaleFactor, which re-reads the plugin's size). Editors that honour
+    // it re-render smaller. A JUCE AffineTransform can NOT do this: the hosted editor is a
+    // native child HWND that blits at its own size regardless (live-verified TR-909/Jup-8000).
+    if (! scaleAttempted)
+    {
+        scaleAttempted = true;
+        const int ew = ed->getWidth(), eh = ed->getHeight();
+        if (ew > 0 && eh > 0)
         {
-            // ONE polite attempt at the exact content size (rect minus the window border). Editors
-            // that report resizable but clamp to fixed zoom steps (Roland, Arturia — live-verified
-            // 2026-07-19) may refuse or re-assert their preferred size; layoutContent() then scales
-            // the ACHIEVED size instead of asking again — never a setSize fight.
-            const auto area = getContentComponentBorder()
-                                  .subtractedFrom (juce::Rectangle<int> (logical.getWidth(), logical.getHeight()));
-            ed->setTransform ({});
-            ed->setSize (area.getWidth(), area.getHeight());
+            const float s = juce::jmin ((float) area.getWidth()  / (float) ew,
+                                        (float) area.getHeight() / (float) eh);
+            ed->setScaleFactor (s);
+            if (fitsWithin (ed->getWidth(), ed->getHeight(), area))
+            {
+                appliedContentScale = s;   // honoured: plugin re-rendered into the area
+                return;
+            }
+            ed->setScaleFactor (1.0f);     // ignored -> roll back; clip-centre placement remains
         }
-
-    setBounds (logical);   // -> resized() -> layoutContent()
-    layoutContent();       // also when setBounds was a no-op (same rect re-applied)
+    }
 }
 
 void SynthWindow::layoutContent()
@@ -43,24 +88,20 @@ void SynthWindow::layoutContent()
     const juce::ScopedValueSetter<bool> layoutGuard (inLayout, true);
     auto* ed = getContentComponent();
     if (ed == nullptr) return;
-    const auto area = getContentComponentBorder().subtractedFrom (getLocalBounds());
+    const auto area = contentArea();
     const int ew = ed->getWidth(), eh = ed->getHeight();
     if (ew <= 0 || eh <= 0 || area.isEmpty()) return;
 
     if (juce::isWithin (ew, area.getWidth(), 2) && juce::isWithin (eh, area.getHeight(), 2))
     {
-        ed->setTransform ({});                       // matches (within layout rounding): native pixels
-        ed->setTopLeftPosition (area.getPosition());
+        ed->setTopLeftPosition (area.getPosition());   // matches: default placement, pixel-sharp
         return;
     }
-    // Achieved-size fallback: scale the editor AS IS into the content area — uniform (aspect-
-    // preserved), centred. Compliant editors never get here; clamping ones converge in one step.
-    const float s = juce::jmin ((float) area.getWidth()  / (float) ew,
-                                (float) area.getHeight() / (float) eh);
-    ed->setTopLeftPosition (0, 0);   // position is pre-scaled by the transform -> placement lives in it
-    ed->setTransform (juce::AffineTransform::scale (s)
-        .translated ((float) area.getX() + ((float) area.getWidth()  - (float) ew * s) * 0.5f,
-                     (float) area.getY() + ((float) area.getHeight() - (float) eh * s) * 0.5f));
+    // Centre the editor AS IS: letterbox when it is smaller than the area, symmetric clip (the
+    // MIDDLE of the GUI stays visible) when the plugin's minimum exceeds it. Never scaled by
+    // transform — the hosted editor is a native child HWND that ignores JUCE transforms.
+    ed->setTopLeftPosition (area.getX() + (area.getWidth()  - ew) / 2,
+                            area.getY() + (area.getHeight() - eh) / 2);
 }
 
 void SynthWindow::moved()
@@ -81,20 +122,22 @@ void SynthWindow::resized()
 
 void SynthWindow::childBoundsChanged (juce::Component* child)
 {
-    if (inLayout) return;   // layoutContent() only moves/transforms — its callbacks are noise
+    if (inLayout) return;   // layoutContent() only moves the editor — its callbacks are noise
     if (child != getContentComponent())
     {
         juce::ResizableWindow::childBoundsChanged (child);
         return;
     }
+    if (applyingRect) return;   // inside applyRect / a sticky re-pin: geometry is being imposed
 
     if (fitActive)
     {
-        if (applyingRect) return;   // our own layout move / polite resize attempt -> already handled
-        // Sticky dock fit: the editor changed size on its own (init / settle / preset-load).
-        // Never fight it — keep its achieved size, re-pin the window, re-fit via transform.
+        // Sticky dock fit: the editor changed size on its own (init / settle / preset-load /
+        // ~20 ms clamp re-assert). Never fight it — re-pin the window, spend the negotiation's
+        // scale attempt if it is still available, and place the achieved size.
         const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // internal re-pin: no commit
         setBounds (fitLogical);
+        negotiateContentSize (false);   // no repeated setSize ask — scale attempt / rollback only
         layoutContent();
         return;
     }
