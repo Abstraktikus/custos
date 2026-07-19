@@ -150,15 +150,17 @@ public:
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
 
-    // F3/F6: show (if needed) + place the synth window at a PHYSICAL-pixel rect (DPI-mapped). Message thread.
+    // F3/F6: show (if needed) + place the synth window at a desktop-logical rect (DIPs, used as
+    // JUCE-logical directly — awareness-invariant; contract 2026-07-19). Message thread.
     // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
     // fit = treat (x,y,w,h) as an available AREA; fit the editor aspect-preserved + centred, leaving a
     //   marginLogical (logical px) frame, and force always-on-top (docking into a host UI region). fit wins over clamp.
     void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false,
                              bool fit = false, int marginLogical = 0);
 
-    // The synth window's current bounds in PHYSICAL pixels (empty if hidden). For the editor's rect readout.
-    juce::Rectangle<int> currentSynthWindowPhysical() const;
+    // The synth window's current bounds in DIPs (empty if hidden) — the same unit the
+    // /custos/window/rect command and feedback use. For the editor's rect readout + the echo.
+    juce::Rectangle<int> currentSynthWindowRect() const;
 
     // MIDI channel routing (message thread writes, audio thread reads). Persisted (state v3).
     void setMidiRoute (const std::array<int, 16>& route);   // values clamped to 0..16

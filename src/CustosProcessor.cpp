@@ -879,8 +879,12 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
     if (synthWindow == nullptr) return;              // no inner / editor-less synth
 
+    // Contract 2026-07-19: x,y,w,h arrive as desktop-logical px (DIPs) and are used as
+    // JUCE-logical DIRECTLY — awareness-invariant: under a DPI-unaware host (GP measures as
+    // unaware; JUCE sees scale 1.0) JUCE-logical == virtualized == DIP, under an aware host
+    // JUCE-logical == physical/scale == DIP too. No physicalToLogical mapping.
     auto& displays = juce::Desktop::getInstance().getDisplays();
-    auto logical = displays.physicalToLogical (juce::Rectangle<int> (x, y, w, h));
+    auto logical = juce::Rectangle<int> (x, y, w, h);
 
     if (fit)   // docking: (x,y,w,h) is an available AREA — fit the editor into it, aspect-preserved + centred
     {
@@ -921,10 +925,10 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     emitWindowRect();            // echo the applied position to KM
 }
 
-juce::Rectangle<int> CustosProcessor::currentSynthWindowPhysical() const
+juce::Rectangle<int> CustosProcessor::currentSynthWindowRect() const
 {
     if (synthWindow == nullptr) return {};
-    return juce::Desktop::getInstance().getDisplays().logicalToPhysical (synthWindow->getBounds());
+    return synthWindow->getBounds();   // DIPs — same unit the /custos/window/rect command uses
 }
 
 void CustosProcessor::updateEditorRectReadout()
@@ -936,7 +940,7 @@ void CustosProcessor::updateEditorRectReadout()
 void CustosProcessor::emitWindowRect()
 {
     if (! outboundSink || synthWindow == nullptr) return;
-    const auto r = currentSynthWindowPhysical();
+    const auto r = currentSynthWindowRect();
     outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable));
 }
 
