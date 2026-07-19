@@ -36,12 +36,16 @@ TEST_CASE ("browseStep: wrap at both ends sets wrapped")
     REQUIRE (dn.wrapped == true);
 }
 
-TEST_CASE ("favouriteFits: unknown (0) always fits; else slots <= facadeCap")
+TEST_CASE ("favouriteFits: unknown (0) always fits; oversize tolerated up to 10%")
 {
     REQUIRE (favouriteFits (0, 1000)    == true);    // unknown -> allow
     REQUIRE (favouriteFits (1000, 1000) == true);    // exact fit
     REQUIRE (favouriteFits (999, 1000)  == true);
-    REQUIRE (favouriteFits (1001, 1000) == false);   // one over -> skip
+    REQUIRE (favouriteFits (1001, 1000) == true);    // small overshoot -> tolerated (top params unbound)
+    REQUIRE (favouriteFits (1100, 1000) == true);    // exactly the 10% limit
+    REQUIRE (favouriteFits (1101, 1000) == false);   // beyond the tolerance -> skip
+    REQUIRE (favouriteFits (3058, 3000) == true);    // Jup-8000 V in its 3000 rung (live rig)
+    REQUIRE (favouriteFits (3168, 3000) == true);    // Memory V in its 3000 rung (live rig)
     REQUIRE (favouriteFits (4000, 1000) == false);   // 4000-param synth in a Custos 1000 -> skip
     REQUIRE (favouriteFits (4000, 10000) == true);   // fits the big rung
 }

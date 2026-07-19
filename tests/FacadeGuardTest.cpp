@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include "CustosProcessor.h"
 #include "InstrumentBrowser.h"
 #include "FakeInnerProcessor.h"
@@ -39,12 +39,47 @@ TEST_CASE ("load() rejects a list entry whose slots exceed the facade cap")
     juce::ScopedJuceInitialiser_GUI juceInit;
     CustosProcessor proc;
     const int cap = proc.facadeSize();
-    proc.setFavorites (listWith ("BigSynth", "C:/x/BigSynth.vst3", cap + 1));
+    proc.setFavorites (listWith ("BigSynth", "C:/x/BigSynth.vst3", cap * 2));
 
     const auto r = proc.load ("C:/x/BigSynth.vst3");
     REQUIRE (r.ok == false);
     REQUIRE (r.message.contains ("too large"));   // refused by the guard, NOT a failed load attempt
     REQUIRE (proc.hasInnerSynth() == false);
+}
+
+TEST_CASE ("load() tolerates up to 10% oversize — proceeds with a warning ack")
+{
+    // The live rig runs Jup-8000 V (3058) and Memory V (3168) in 3000 facades: the top params
+    // stay unbound (binding clamps), which was always survivable. Refusing them took two slots
+    // down on 2026-07-19 — small overshoot now loads and SAYS so.
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CustosProcessor proc;
+    const int cap = proc.facadeSize();
+    proc.setFavorites (listWith ("SlightlyBig", "C:/x/SlightlyBig.vst3", cap + cap / 10));
+
+    std::vector<juce::OSCMessage> sent;
+    proc.outboundSink = [&sent] (const juce::OSCMessage& m) { sent.push_back (m); };
+
+    const auto r = proc.load ("C:/x/SlightlyBig.vst3");
+    REQUIRE (! r.message.contains ("too large"));   // NOT refused...
+    REQUIRE (r.message.contains ("not found"));     // ...the loader was actually attempted (fake path)
+    bool warned = false;
+    for (const auto& m : sent)
+        if (m.getAddressPattern().toString() == "/custos/ack" && m.size() >= 2 && m[1].isString()
+            && m[1].getString().startsWith ("warning instrument oversized")) warned = true;
+    REQUIRE (warned);
+}
+
+TEST_CASE ("load() refuses one param past the 10% tolerance")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    CustosProcessor proc;
+    const int cap = proc.facadeSize();
+    proc.setFavorites (listWith ("JustTooBig", "C:/x/JustTooBig.vst3", cap + cap / 10 + 1));
+
+    const auto r = proc.load ("C:/x/JustTooBig.vst3");
+    REQUIRE (r.ok == false);
+    REQUIRE (r.message.contains ("too large"));
 }
 
 TEST_CASE ("load() at exactly the facade cap is allowed through to the loader")
@@ -90,7 +125,7 @@ TEST_CASE ("INCIDENT REPRO: /custos/load path instantiates a synth the list mark
     proc.prepareToPlay (48000.0, 64);
     const int cap = proc.facadeSize();
     // The list says this synth does NOT fit this facade (the incident: big synth, small Custos).
-    proc.setFavorites (listWith ("TooBig", synth, cap + 1));
+    proc.setFavorites (listWith ("TooBig", synth, cap * 2));
 
     // Desired: refused before the (message-thread-blocking) instantiation ever starts.
     // Today: the load goes straight through and the synth is live — this is the hole.
@@ -109,7 +144,7 @@ TEST_CASE ("INCIDENT REPRO: /custos/instrument/load (GP song load) honours the s
     CustosProcessor proc;
     proc.prepareToPlay (48000.0, 64);
     const int cap = proc.facadeSize();
-    proc.setFavorites (listWith ("TooBig", synth, cap + 1));
+    proc.setFavorites (listWith ("TooBig", synth, cap * 2));
 
     std::vector<juce::OSCMessage> sent;
     proc.outboundSink = [&sent] (const juce::OSCMessage& m) { sent.push_back (m); };

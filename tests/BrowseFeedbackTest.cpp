@@ -81,7 +81,7 @@ TEST_CASE ("scope-0 browse where every favourite is oversized reports instead of
     juce::ScopedJuceInitialiser_GUI juceInit;
     CustosProcessor proc;
     const int cap = proc.facadeSize();
-    proc.setFavorites ({ fav ("TooBig", 1, cap + 1) });
+    proc.setFavorites ({ fav ("TooBig", 1, cap * 2) });   // grossly oversized (past the 10% tolerance)
     Sink sink;
     proc.outboundSink = [&sink] (const juce::OSCMessage& m) { sink.sent.push_back (m); };
 

@@ -124,14 +124,18 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
 CommandResult CustosProcessor::load (const juce::String& path)
 {
-    // Facade guard: refuse a list-known oversized synth BEFORE the heavy instantiation. The load
-    // runs synchronously on the message thread every instance's OSC shares — a big synth that
-    // stalls there freezes them all (2026-07-19 GP AppHang). slots <= 0 (unknown) stays loadable:
-    // an empty/unpushed DB must not block loads.
+    const Favorite* entry = nullptr;
     for (const auto& f : favorites)
-        if (f.path == path && ! favouriteFits (f.slots, facadeSize()))
-            return { false, boundCount, "error instrument too large (slots " + juce::String (f.slots)
-                                        + " > facade " + juce::String (facadeSize()) + ")" };
+        if (f.path == path) { entry = &f; break; }
+
+    // Facade guard: refuse a list-known grossly-oversized synth BEFORE the heavy instantiation.
+    // The load runs synchronously on the message thread every instance's OSC shares — a big synth
+    // that stalls there freezes them all (2026-07-19 GP AppHang). favouriteFits tolerates up to
+    // 10% overshoot (warned below); slots <= 0 (unknown) stays loadable: an empty/unpushed DB
+    // must not block loads.
+    if (entry != nullptr && ! favouriteFits (entry->slots, facadeSize()))
+        return { false, boundCount, "error instrument too large (slots " + juce::String (entry->slots)
+                                    + " > facade " + juce::String (facadeSize()) + ")" };
 
     // Idempotent load: if this exact synth is already loaded, DON'T re-instantiate it. GP restores
     // the persisted inner on gig-open and GP-Script re-sends the song's synths, so a reload request
@@ -143,6 +147,13 @@ CommandResult CustosProcessor::load (const juce::String& path)
         emitLoaded();
         return { true, boundCount, "already loaded " + path };
     }
+
+    // Tolerated oversize (within the 10% band): proceed, but say so — once per real load, not on
+    // the idempotent re-ack above. The top (slots - facade) params stay unbound (binding clamps).
+    if (entry != nullptr && entry->slots > facadeSize())
+        emitErrorAck ("warning instrument oversized (slots " + juce::String (entry->slots)
+                      + " > facade " + juce::String (facadeSize()) + ", "
+                      + juce::String (entry->slots - facadeSize()) + " params unbound)");
 
     const double sr    = preparedSampleRate > 0.0 ? preparedSampleRate : 44100.0;
     const int    block = preparedBlockSize  > 0   ? preparedBlockSize  : 512;
