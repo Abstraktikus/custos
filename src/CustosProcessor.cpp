@@ -914,7 +914,7 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
     }
 
     synthWindowMovable = movable;
-    synthWindow->applyRect (logical, movable);
+    synthWindow->applyRect (logical, movable, /*sticky*/ fit);   // docked fit stays put against editor self-resize
     if (fit)                                  // docked into a host UI region (KM SYNTH view): keep it above the
         synthWindow->setAlwaysOnTop (true);   // host — onTopMode default is Off, so it would fall behind KM otherwise
     updateEditorRectReadout();   // reflect the applied position in the editor fields

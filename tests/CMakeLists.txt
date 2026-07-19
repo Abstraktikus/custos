@@ -12,6 +12,7 @@ add_executable(custos_tests
     PassthroughTest.cpp
     SynthLoaderTest.cpp
     EditorTest.cpp
+    SynthWindowTest.cpp
     SwapTest.cpp
     StateCodecTest.cpp
     PresetCodecTest.cpp

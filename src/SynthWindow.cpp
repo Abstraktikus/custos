@@ -11,9 +11,9 @@ SynthWindow::SynthWindow (juce::Component* editor)
     setVisible (true);
 }
 
-void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
+void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable, bool sticky)
 {
-    const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // resized() won't re-emit; caller emits once
+    const juce::ScopedValueSetter<bool> guard (applyingRect, true);   // resized()/childBoundsChanged() won't re-fit or re-emit
     if (auto* ed = dynamic_cast<juce::AudioProcessorEditor*> (getContentComponent()))
     {
         if (ed->isResizable())
@@ -29,7 +29,12 @@ void SynthWindow::applyRect (juce::Rectangle<int> logical, bool movable)
         }
     }
     setBounds (logical);
-    draggable = movable;
+    draggable  = movable;
+    // Remember (or release) the sticky fit. While active, childBoundsChanged() re-imposes this
+    // rect whenever the hosted editor resizes itself (init/settle/preset-load) — the fix for the
+    // dock-fit snapping back to natural size.
+    fitActive  = sticky;
+    fitLogical = logical;
 }
 
 void SynthWindow::moved()
@@ -42,6 +47,20 @@ void SynthWindow::resized()
     juce::ResizableWindow::resized();                       // lay out the hosted editor first
     if (onReadout) onReadout();                             // live w/h readout (incl. inner-synth zoom)
     if (! applyingRect && onCommit) onCommit();             // a content-driven resize reports to KM
+}
+
+void SynthWindow::childBoundsChanged (juce::Component* child)
+{
+    // Sticky dock fit: the hosted editor resized itself (init / settle / preset-load). Do NOT let
+    // ResizableWindow follow it back to natural size (that undid the fit) — re-impose the fit rect.
+    // applyingRect guards the re-apply's own setSize/transform from recursing here.
+    if (fitActive && ! applyingRect && child == getContentComponent())
+    {
+        applyRect (fitLogical, draggable, true);
+        return;
+    }
+    // Undocked window: keep the default resize-to-fit-content behaviour so synth-zoom is tracked.
+    juce::ResizableWindow::childBoundsChanged (child);
 }
 
 void SynthWindow::mouseDown (const juce::MouseEvent& e)
