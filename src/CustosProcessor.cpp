@@ -124,6 +124,15 @@ bool CustosProcessor::loadInner (std::unique_ptr<juce::AudioProcessor> newInner,
 
 CommandResult CustosProcessor::load (const juce::String& path)
 {
+    // Facade guard: refuse a list-known oversized synth BEFORE the heavy instantiation. The load
+    // runs synchronously on the message thread every instance's OSC shares — a big synth that
+    // stalls there freezes them all (2026-07-19 GP AppHang). slots <= 0 (unknown) stays loadable:
+    // an empty/unpushed DB must not block loads.
+    for (const auto& f : favorites)
+        if (f.path == path && ! favouriteFits (f.slots, facadeSize()))
+            return { false, boundCount, "error instrument too large (slots " + juce::String (f.slots)
+                                        + " > facade " + juce::String (facadeSize()) + ")" };
+
     // Idempotent load: if this exact synth is already loaded, DON'T re-instantiate it. GP restores
     // the persisted inner on gig-open and GP-Script re-sends the song's synths, so a reload request
     // for the already-loaded synth is the common case — re-instantiating a heavy synth (transient
@@ -237,7 +246,13 @@ void CustosProcessor::loadFavorite (int index)
 bool CustosProcessor::loadByName (const juce::String& name)
 {
     for (const auto& f : favorites)
-        if (f.name == name) { load (f.path); return true; }
+        if (f.name == name)
+        {
+            const auto r = load (f.path);
+            if (! r.ok && outboundSink)
+                outboundSink (buildAck (identityN, r.message));   // surface guard refusals / load failures (error-acks mirror to GP)
+            return true;   // name resolved (success itself is conveyed by /custos/loaded)
+        }
     return false;
 }
 
