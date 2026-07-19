@@ -46,9 +46,11 @@ inline juce::OSCMessage buildParamsDone (int n, int start, int count)
 // Window-position feedback (Custos -> KM). N first, then the PHYSICAL-pixel rect and the movable flag.
 // Emitted when the operator drags the synth window or when a rect is (re)applied, so KM can capture the
 // operator-chosen geometry for its settings. Same address as the inbound verb; the leading N marks it a report.
-inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool movable)
+// contentW/contentH (added 2026-07-19) = the hosted editor's ACHIEVED size in DIPs: when it exceeds w/h the
+// GUI is centre-cropped in the dock (plugin minimum larger than the fit area) — KM can hint the shortfall.
+inline juce::OSCMessage buildWindowRect (int n, int x, int y, int w, int h, bool movable, int contentW, int contentH)
 {
-    return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0);
+    return juce::OSCMessage ("/custos/window/rect", n, x, y, w, h, movable ? 1 : 0, contentW, contentH);
 }
 
 // Instrument-browse feedback (Custos -> KM/GP). Reports the cursor's favourite NAME while flipping (no

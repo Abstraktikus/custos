@@ -941,7 +941,10 @@ void CustosProcessor::emitWindowRect()
 {
     if (! outboundSink || synthWindow == nullptr) return;
     const auto r = currentSynthWindowRect();
-    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable));
+    auto* content = synthWindow->getContentComponent();   // achieved editor size (DIPs): > r = centre-cropped
+    outboundSink (buildWindowRect (identityN, r.getX(), r.getY(), r.getWidth(), r.getHeight(), synthWindowMovable,
+                                   content != nullptr ? content->getWidth()  : 0,
+                                   content != nullptr ? content->getHeight() : 0));
 }
 
 void CustosProcessor::hideSynthWindow()
