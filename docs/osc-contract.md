@@ -103,7 +103,7 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 | `/custos/learn/started` | `N` | Learn window opened; capture armed |
 | `/custos/learn/moved` | `N, facadeIdx:int, value:float, name:string` | one moved facade parameter (coalesced latest-per-idx, ~25 ms, deadband 0.001); `value` normalised 0..1 |
 | `/custos/learn/stopped` | `N, reason:string` | Learn window closed; `reason` = `"stop"` (explicit) or `"timeout"` (safety) |
-| `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list |
+| `/custos/browsing` | `N, index:int, name:string, wrapped:int` | favourite-browse preview — the cursor's favourite NAME while flipping (`next`/`prev`/`set`). **Not loaded yet** — show the name; the actual load lands later as `/custos/loaded`. `wrapped=1` on the step that wrapped past an end of the list. **Also emitted as a bare EXIT SIGNAL** when there is nothing to browse: `name` = the literal `(none)` marker (never an instrument name), `wrapped=1`, `index` = the **unmoved** cursor (`-1` if never seeded), and no load is armed — see the empty-browse-set note in §4 |
 | `/custos/patch/stepped` | `N, controlType:string, detail:string` | patch-axis feedback — reports the method that ran for the just-processed `/custos/patch/next`\|`prev` (`PARAM`\|`PC`; the `PRESET` fallback reports via `/custos/preset/browsing`+`/custos/preset/loaded` instead, not this address). `detail` is best-effort: `"+"`/`"-"` for `PARAM` (which direction was injected), the resulting program number (as a string) for `PC` |
 | `/custos/preset/browsing` | `N, name:string, idx:int` | preset-browse preview — the cursor's preset NAME while flipping (`preset/next`\|`prev`); **not loaded yet** (deferred load follows as `/custos/preset/loaded`). Mirrored to GP |
 | `/custos/preset/loaded` | `N, name:string, idx:int` | a preset was recalled (its state restored into the loaded synth). Mirrored to GP |
@@ -167,10 +167,16 @@ fixed facade. **All meta control (load, mode, volume, audio-fold, favorites, win
 - **Empty browse sets are reported, never silently ignored.** `/custos/instrument/next|prev|set` on an
   empty instrument list acks `error instrument list empty`. `next|prev` where NO entry passes the
   scope+fit filter (e.g. scope `0` with zero favourites, or every candidate oversized for this facade)
-  acks `error no browsable instrument (scope <s>, facade <cap>)` — the cursor does not move, no
-  `/custos/browsing` is emitted, and no deferred load is armed. (Previously an exhausted skip loop
-  still emitted `/custos/browsing` with `wrapped=1` for an arbitrary non-matching entry.) Both are
-  error-acks and mirror to GP.
+  acks `error no browsable instrument (scope <s>, facade <cap>)` — the cursor does not move and no
+  deferred load is armed. Both are error-acks and mirror to GP.
+  **Each error path additionally emits one `/custos/browsing` as a bare exit signal**: `wrapped=1`,
+  the unmoved cursor as `index`, and the literal `(none)` in `name`. This exists for GP: its
+  rackspace leaves the browse submode only on an inbound `/custos/browsing` with `wrapped=1` and it
+  has no `/custos/ack` handler, so an ack-only refusal stranded the operator in the cycle window
+  (observed 2026-07-20 on VST10 / N=10). The signal is deliberately inert — no cursor step, no
+  deferred load, and no instrument name that could read as loadable. (History: before 2026-07-19 an
+  exhausted skip loop emitted `wrapped=1` for an arbitrary NON-matching entry *and* armed its load;
+  that accidental exit is what the marker now replaces on purpose.)
 - **`scope` splits the browse list into favourites vs. everything.** Each pushed entry's `favOrder`
   decides membership: `favOrder >= 1` = a favourite. `/custos/instrument/next|prev` with `scope` omitted
   or `0` cycles favourites only; `scope 1` cycles the full instrument list (favourites and non-favourites
