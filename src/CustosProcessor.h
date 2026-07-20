@@ -183,6 +183,11 @@ public:
     void browseInstrument (int delta, int scope = 0);
     void setBrowseIndex (int i);
 
+    // True while a synth swap is pending (the browse debounce is armed). Public because it is
+    // observable state, not an internal: a recall arriving in this window is buffered rather than
+    // applied (see the pending-recall buffer), so callers/tests can tell "queued" from "refused".
+    bool loadInFlight() const noexcept;
+
     // Learn mode (message thread). KM opens a short window; while open, inner-parameter moves are
     // captured and streamed as /custos/learn/moved so KM can bind a macro by wiggling the knob.
     // Outside the window nothing is emitted. Spec: docs/superpowers/specs/2026-07-11-custos-learn-param-capture-design.md
@@ -248,6 +253,7 @@ private:
         void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
     void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
+    void emitBrowseExit();                                  // "nothing to browse" — releases GP's browse submode
     void emitErrorAck (const juce::String& message);        // trace + /custos/ack via outboundSink (mirrors to GP)
     int  indexOfPath (const juce::String& path) const;      // index of path in getFavorites() (-1 if none)
     void traceN (const juce::String& msg) const;            // N-tagged host-trace line (E2E; gated by the trace toggle)
@@ -291,8 +297,7 @@ private:
     // Pending-recall buffer (spec §5.1): a recall arriving while a synth load is in-flight (the
     // browse debounce is armed) is held (one slot, last-wins) and applied after the load completes.
     struct PendingRecall { enum Kind { Next, Prev, SetIdx, LoadName, LoadIdx } kind; int index = 0; juce::String name; };
-    std::optional<PendingRecall> pendingRecall;
-    bool loadInFlight() const noexcept;   // true while a synth swap is pending (browse debounce armed)
+    std::optional<PendingRecall> pendingRecall;   // (loadInFlight() is public — see the browse block)
     void drainPendingRecall();            // apply the buffered recall after loadInner completes
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustosProcessor)

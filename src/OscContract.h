@@ -61,6 +61,11 @@ inline juce::OSCMessage buildBrowsing (int n, int index, const juce::String& nam
     return juce::OSCMessage ("/custos/browsing", n, index, name, wrapped ? 1 : 0);
 }
 
+// arg2 of the EXIT SIGNAL: the /custos/browsing that reports "nothing to browse" (empty list, or no
+// entry passing the scope+fit filter). Deliberately NOT an instrument name — GP renders arg2 as an
+// overlay ("BROWSE <name>"), and a non-matching name there reads as loadable. See emitBrowseExit().
+inline const char* const kBrowseNoneName = "(none)";
+
 // MIDI route feedback (Custos -> KM). N first, then 16 targets (input i -> value; 0 = dropped).
 // Same address as the inbound verb; the 17-arg form with leading N marks it a report.
 inline juce::OSCMessage buildMidiRoute (int n, const std::array<int, 16>& route)

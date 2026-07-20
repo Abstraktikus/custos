@@ -285,7 +285,7 @@ void CustosProcessor::browseInstrument (int delta, int scope)
 {
     const int cnt = (int) favorites.size();
     const int cap = facadeSize();
-    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); emitBrowseExit(); return; }
 
     // No entry passes the scope+fit filter -> say so. The old skip loop would exhaust its tries
     // and still emit /custos/browsing (wrapped=1) for an arbitrary NON-matching entry — and arm
@@ -297,6 +297,7 @@ void CustosProcessor::browseInstrument (int delta, int scope)
     {
         emitErrorAck ("error no browsable instrument (scope " + juce::String (scope)
                       + ", facade " + juce::String (cap) + ")");
+        emitBrowseExit();
         return;
     }
 
@@ -321,7 +322,7 @@ void CustosProcessor::browseInstrument (int delta, int scope)
 void CustosProcessor::setBrowseIndex (int i)
 {
     const int cnt = (int) favorites.size();
-    if (cnt == 0) { emitErrorAck ("error instrument list empty"); return; }
+    if (cnt == 0) { emitErrorAck ("error instrument list empty"); emitBrowseExit(); return; }
     browseIndex = juce::jlimit (0, cnt - 1, i);
     const auto& f = favorites[(size_t) browseIndex];
     emitBrowsing (browseIndex, f.name, false);
@@ -342,6 +343,17 @@ void CustosProcessor::commitBrowseLoad()
 void CustosProcessor::emitBrowsing (int index, const juce::String& name, bool wrapped)
 {
     if (outboundSink) outboundSink (buildBrowsing (identityN, index, name, wrapped));
+}
+
+// The browse error paths report via an error-ack, but GP has no /custos/ack handler: its ONLY exit
+// from the browse submode is an inbound /custos/browsing with wrapped=1. Without one, the rackspace
+// strands the operator in the cycle window. So emit a bare EXIT SIGNAL alongside the ack — all four
+// args (GP drops ArgCount < 4), wrapped=1, the cursor left exactly where it was, the no-instrument
+// marker in arg2 (GP overlays it as "BROWSE (none)") and NO deferred load armed.
+void CustosProcessor::emitBrowseExit()
+{
+    emitBrowsing (browseIndex, kBrowseNoneName, true);
+    traceN ("browse exit-signal cursor=" + juce::String (browseIndex) + " (nothing to browse)");
 }
 
 void CustosProcessor::emitErrorAck (const juce::String& message)
