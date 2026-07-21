@@ -169,7 +169,8 @@ public:
     // JUCE-logical directly — awareness-invariant; contract 2026-07-19). Message thread.
     // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
     // fit = treat (x,y,w,h) as an available AREA; fit the editor aspect-preserved + centred, leaving a
-    //   marginLogical (logical px) frame, and force always-on-top (docking into a host UI region). fit wins over clamp.
+    //   marginLogical (logical px) frame, and apply the docked on-top strategy (always-on-top in Mode A,
+    //   follow-KM in Mode B — see setDockOnTopState). fit wins over clamp.
     void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false,
                              bool fit = false, int marginLogical = 0);
 

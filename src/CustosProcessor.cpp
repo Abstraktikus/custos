@@ -1007,7 +1007,11 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
         synthWindow->setAlwaysOnTop (dockOnTopEffective());
     }
     else
-        synthWindowDocked = false;   // a non-fit placement is no longer docked; leave always-on-top as-is (as today)
+    {
+        synthWindowDocked = false;   // a non-fit placement is no longer docked
+        if (dockMode == DockOnTopFollowKm)       // Mode B: leaving the dock must not strand the window on top
+            synthWindow->setAlwaysOnTop (false);  // (Mode A: untouched -> bit-identical to pre-feature behaviour)
+    }
     updateEditorRectReadout();   // reflect the applied position in the editor fields
     emitWindowRect();            // echo the applied position to KM
 }

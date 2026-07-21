@@ -148,6 +148,12 @@ The docking path therefore shows the window without taking keyboard focus. The f
 call path, not globally off the window: "Open" and the titled window keep today's behaviour, where
 taking focus is correct.
 
+This `toFront (false)` change is unconditional — it applies to every instance's re-show of an
+already-open borderless window, including one that never enters Mode B — and is a deliberate,
+narrow deviation from the "bit-identical" wording above: it is limited to keyboard focus on an
+explicit re-show of an already-open window, does not affect z-order, and the normal browse/load
+path destroys and recreates the window, so it never hits this branch.
+
 ### Testing
 
 Unit-testable: the mode transitions including the `-1` return path, `dockOnTopEffective()` across
