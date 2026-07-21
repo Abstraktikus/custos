@@ -868,6 +868,7 @@ void CustosProcessor::showSynthWindow()
         synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
         synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
         windowMode = WinBorderless;
+        synthWindowDocked = false;   // freshly shown at natural size -> not docked until a fit rect arrives
     }
     refreshEditor();
 }
@@ -998,8 +999,13 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
 
     synthWindowMovable = movable;
     synthWindow->applyRect (logical, movable, /*sticky*/ fit);   // docked fit stays put against editor self-resize
-    if (fit)                                  // docked into a host UI region (KM SYNTH view): keep it above the
-        synthWindow->setAlwaysOnTop (true);   // host — onTopMode default is Off, so it would fall behind KM otherwise
+    if (fit)   // docked into a host UI region (KM SYNTH view): keep it above the host. Mode A applies an
+    {          // unconditional true (unchanged); Mode B applies KM's foreground state instead.
+        synthWindowDocked = true;
+        synthWindow->setAlwaysOnTop (dockOnTopEffective());
+    }
+    else
+        synthWindowDocked = false;   // a non-fit placement is no longer docked; leave always-on-top as-is (as today)
     updateEditorRectReadout();   // reflect the applied position in the editor fields
     emitWindowRect();            // echo the applied position to KM
 }
@@ -1031,6 +1037,7 @@ void CustosProcessor::hideSynthWindow()
     synthWindow.reset();
     titledWindow.reset();
     windowMode = WinNone;
+    synthWindowDocked = false;
     refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
 }
 
