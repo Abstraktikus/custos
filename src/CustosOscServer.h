@@ -10,7 +10,7 @@ class CustosProcessor;
 struct Command
 {
     enum Kind { Load, Clear, Hello, Params, Volume, FavBegin, FavEntry, FavEnd,
-                WindowShow, WindowTitled, WindowHide, WindowRect, MidiRoute, MidiQuery,
+                WindowShow, WindowTitled, WindowHide, WindowRect, WindowOnTop, MidiRoute, MidiQuery,
                 BrowseNext, BrowsePrev, BrowseSet, InstrumentLoad,
                 PresetSetRoot, PresetSave, PresetList, PresetLoad, PresetNext, PresetPrev,
                 PresetSet, PresetRename, PresetDelete, MainLR, MainLRQuery, PresetQueryRoot,
@@ -27,6 +27,7 @@ struct Command
     bool fit = false;                     // WindowRect: treat the rect as an available area — fit the editor
                                           //   into it preserving aspect ratio, centred (docking)
     int marginLogical = 0;                // WindowRect fit: frame (logical px) left on all sides of the area
+    int onTopState = 0;   // WindowOnTop: -1 = Mode A (hands off); 0/1 = Mode B KM-foreground flag
     std::array<int, 16> route {};   // MidiRoute: target output per input channel (0 = drop)
     juce::String presetName, presetNewName, rootPath;   // preset verbs
     int presetIndex = -1;                               // PresetSet, or PresetLoad-by-index

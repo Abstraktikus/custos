@@ -125,6 +125,15 @@ Command parseCommand (const juce::OSCMessage& msg)
         }
         return { Command::Unknown, {} };
     }
+    if (addr == "/custos/window/ontop")
+    {
+        if (msg.size() >= 1 && msg[0].isInt32())
+        {
+            Command c; c.kind = Command::WindowOnTop; c.onTopState = msg[0].getInt32();
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
     if (addr == "/custos/midi/route")
     {
         if (msg.size() == 16)
@@ -361,6 +370,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::WindowRect:
             proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp, cmd.fit, cmd.marginLogical);
+            break;
+        case Command::WindowOnTop:
+            proc.setDockOnTopState (cmd.onTopState);
             break;
         case Command::MidiRoute:
         {

@@ -230,3 +230,25 @@ TEST_CASE ("parseCommand maps /custos/preset/queryroot")
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/queryroot")).kind
              == Command::PresetQueryRoot);
 }
+
+TEST_CASE ("parseCommand maps /custos/window/ontop with an int state")
+{
+    const auto on  = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) 1));
+    REQUIRE (on.kind == Command::WindowOnTop);
+    REQUIRE (on.onTopState == 1);
+
+    const auto off = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) 0));
+    REQUIRE (off.kind == Command::WindowOnTop);
+    REQUIRE (off.onTopState == 0);
+
+    const auto handsOff = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) -1));
+    REQUIRE (handsOff.kind == Command::WindowOnTop);
+    REQUIRE (handsOff.onTopState == -1);
+}
+
+TEST_CASE ("parseCommand rejects /custos/window/ontop without an int arg")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/ontop")).kind == Command::Unknown);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/ontop",
+                                             juce::String ("1"))).kind == Command::Unknown);
+}
