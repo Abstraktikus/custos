@@ -920,6 +920,32 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
     refreshEditor();
 }
 
+void CustosProcessor::setDockOnTopState (int state)
+{
+    if (state < 0)                       // -1 = hands off -> Mode A (today's unconditional on-top)
+        dockMode = DockOnTopAlways;
+    else                                 // 0/1 = KM takes control -> Mode B
+    {
+        dockMode = DockOnTopFollowKm;
+        kmForeground = (state != 0);
+    }
+    traceN ("dock on-top state=" + juce::String (state)
+            + " mode=" + juce::String (dockMode == DockOnTopAlways ? "A" : "B")
+            + " effective=" + juce::String (dockOnTopEffective() ? 1 : 0));
+    applyDockOnTop();
+}
+
+bool CustosProcessor::dockOnTopEffective() const noexcept
+{
+    return dockMode == DockOnTopAlways ? true : kmForeground;
+}
+
+void CustosProcessor::applyDockOnTop()
+{
+    if (synthWindow != nullptr && synthWindowDocked)
+        synthWindow->setAlwaysOnTop (dockOnTopEffective());
+}
+
 void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp, bool fit, int marginLogical)
 {
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists

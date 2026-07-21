@@ -24,6 +24,12 @@ struct CommandResult { bool ok = false; int innerCount = 0; juce::String message
 // Which window (if any) to keep always-on-top.
 enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
+// Docked-window on-top strategy. Mode A (default) forces always-on-top on the docking path —
+// today's behaviour, above EVERYTHING. Mode B follows KM's foreground state (reported over
+// /custos/window/ontop) so the docked window no longer floats over other apps. See
+// docs/superpowers/specs/2026-07-20-custos-dock-ontop-mode-design.md
+enum DockOnTopMode { DockOnTopAlways, DockOnTopFollowKm };
+
 class CustosProcessor : public juce::AudioProcessor,
                         private juce::AudioProcessorListener   // re-bind on late param populate (#11) + Learn capture (#12)
 {
@@ -150,6 +156,13 @@ public:
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
 
+    // Docked-window on-top strategy (message thread). setDockOnTopState is KM's runtime switch AND
+    // its heartbeat: -1 = hands off (Mode A, today's unconditional on-top); 0/1 = Mode B with KM's
+    // foreground = (state != 0). dockOnTopEffective() is the flag the docking path applies.
+    void setDockOnTopState (int state);
+    bool dockOnTopEffective() const noexcept;
+    DockOnTopMode getDockOnTopMode() const noexcept { return dockMode; }
+
     // F3/F6: show (if needed) + place the synth window at a desktop-logical rect (DIPs, used as
     // JUCE-logical directly — awareness-invariant; contract 2026-07-19). Message thread.
     // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
@@ -225,6 +238,10 @@ private:
     WindowMode windowMode = WinNone;      // remembered so a load (browse/OSC) re-shows the window with the new synth
     bool windowBorderlessMovable = false; // last movable flag for the borderless "Open"
     OnTopMode onTopMode = OnTopOff;             // keep-on-top target
+    DockOnTopMode dockMode = DockOnTopAlways;   // docked-window on-top strategy (A = today's default)
+    bool kmForeground = false;                  // Mode B: last foreground state KM reported
+    bool synthWindowDocked = false;             // the borderless window is currently docked (fit) -> on-top managed
+    void applyDockOnTop();                      // (re)apply the effective flag to a live docked window
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;

@@ -31,6 +31,7 @@ add_executable(custos_tests
     InstrumentBrowserTest.cpp
     FacadeGuardTest.cpp
     BrowseFeedbackTest.cpp
+    DockOnTopTest.cpp
     PresetProcessorTest.cpp
     PatchStepTest.cpp
     RebindTest.cpp
