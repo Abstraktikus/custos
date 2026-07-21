@@ -923,11 +923,16 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
 void CustosProcessor::setDockOnTopState (int state)
 {
     if (state < 0)                       // -1 = hands off -> Mode A (today's unconditional on-top)
+    {
         dockMode = DockOnTopAlways;
+        kmHeartbeat.stopTimer();
+    }
     else                                 // 0/1 = KM takes control -> Mode B
     {
         dockMode = DockOnTopFollowKm;
         kmForeground = (state != 0);
+        kmHeartbeat.cb = [this] { kmForeground = false; applyDockOnTop(); };   // silence -> background
+        kmHeartbeat.startTimer (kmHeartbeatTimeoutMs);                         // (re)arm on every message
     }
     traceN ("dock on-top state=" + juce::String (state)
             + " mode=" + juce::String (dockMode == DockOnTopAlways ? "A" : "B")
@@ -939,6 +944,8 @@ bool CustosProcessor::dockOnTopEffective() const noexcept
 {
     return dockMode == DockOnTopAlways ? true : kmForeground;
 }
+
+bool CustosProcessor::kmHeartbeatArmed() const noexcept { return kmHeartbeat.isTimerRunning(); }
 
 void CustosProcessor::applyDockOnTop()
 {

@@ -162,6 +162,8 @@ public:
     void setDockOnTopState (int state);
     bool dockOnTopEffective() const noexcept;
     DockOnTopMode getDockOnTopMode() const noexcept { return dockMode; }
+    void setKmHeartbeatTimeoutMs (int ms) noexcept { kmHeartbeatTimeoutMs = ms; }   // test seam
+    bool kmHeartbeatArmed() const noexcept;   // true while the Mode B watchdog is running (diagnostic/test)
 
     // F3/F6: show (if needed) + place the synth window at a desktop-logical rect (DIPs, used as
     // JUCE-logical directly — awareness-invariant; contract 2026-07-19). Message thread.
@@ -241,6 +243,7 @@ private:
     DockOnTopMode dockMode = DockOnTopAlways;   // docked-window on-top strategy (A = today's default)
     bool kmForeground = false;                  // Mode B: last foreground state KM reported
     bool synthWindowDocked = false;             // the borderless window is currently docked (fit) -> on-top managed
+    int kmHeartbeatTimeoutMs = 5000;   // Mode B watchdog: KM silent this long -> treat as background
     void applyDockOnTop();                      // (re)apply the effective flag to a live docked window
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
@@ -263,6 +266,7 @@ private:
     int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
     struct DebounceTimer : juce::Timer { std::function<void()> cb;
         void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
+    DebounceTimer kmHeartbeat;   // Mode B watchdog; re-armed on every /custos/window/ontop, one-shot
     void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
     void emitErrorAck (const juce::String& message);        // trace + /custos/ack via outboundSink (mirrors to GP)
