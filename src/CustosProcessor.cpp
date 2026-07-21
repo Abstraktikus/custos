@@ -860,7 +860,9 @@ void CustosProcessor::emitPresetError (const juce::String& reason)
 void CustosProcessor::showSynthWindow()
 {
     if (inner == nullptr) return;                              // nothing to show
-    if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
+    if (synthWindow != nullptr) { synthWindow->toFront (false); return; }   // borderless aux window: never steal focus
+                                                                            // (docking Mode B: focus theft makes KM
+                                                                            //  lose foreground and drop the window)
     if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
     {
         synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
