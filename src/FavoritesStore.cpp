@@ -17,6 +17,7 @@ juce::String favoritesToJson (const std::vector<Favorite>& favs)
         o->setProperty ("controlType", f.controlType);
         o->setProperty ("paramDown", f.paramDown);
         o->setProperty ("paramUp", f.paramUp);
+        o->setProperty ("classId", f.classId);   // v4: stable inner-synth key (durable record of KM's push)
         arr.add (juce::var (o));
     }
     return juce::JSON::toString (juce::var (arr));
@@ -39,6 +40,7 @@ std::vector<Favorite> favoritesFromJson (const juce::String& json)
             f.controlType = v.getProperty ("controlType", "PRESET").toString();
             f.paramDown   = (int) v.getProperty ("paramDown", 0);
             f.paramUp     = (int) v.getProperty ("paramUp", 0);
+            f.classId     = v.getProperty ("classId", "").toString();   // v4: absent -> empty (back-compat)
             out.push_back (f);
         }
     return out;

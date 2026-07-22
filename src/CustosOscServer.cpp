@@ -82,6 +82,8 @@ Command parseCommand (const juce::OSCMessage& msg)
                 c.fav.paramDown = msg[8].getInt32();
             if (msg.size() >= 10 && msg[9].isInt32())   // paramUp optional 10th arg
                 c.fav.paramUp = msg[9].getInt32();
+            if (msg.size() >= 11 && msg[10].isString()) // classId optional 11th arg (v4): durable stable key
+                c.fav.classId = msg[10].getString();
             return c;
         }
         return { Command::Unknown, {} };

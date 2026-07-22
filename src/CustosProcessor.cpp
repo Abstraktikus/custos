@@ -201,7 +201,7 @@ void CustosProcessor::emitLoaded()
 {
     traceN ("loaded \"" + currentSynthPath + "\" count=" + juce::String (boundCount) + " total=" + juce::String (innerParamTotal()));
     if (outboundSink)
-        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
+        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal(), innerSynthKey()));
 }
 
 void CustosProcessor::dumpParams (int start, int count)
@@ -845,6 +845,12 @@ void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& 
     m.addInt32 (identityN);
     m.addString (name);
     m.addInt32 (idx);
+    // v4: live-tag the event with the loaded synth's stable classId + human name so GP (which
+    // drives the preset axis autonomously) can bind the event to its synth without tracking load
+    // state. Trailing/additive: old readers stop at idx. Empty when no inner (classId ""), though
+    // these verbs only fire with an inner present.
+    m.addString (innerSynthKey());
+    m.addString (innerSynthName());
     outboundSink (m);
 }
 

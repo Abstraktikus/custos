@@ -30,13 +30,22 @@ TEST_CASE ("buildHere carries N, protoVer, mode, inner, count, port, facadeCap")
     REQUIRE (m[6].getInt32() == 5000);   // facadeCap
 }
 
-TEST_CASE ("buildLoaded carries N, path, boundCount, innerTotal")
+TEST_CASE ("buildLoaded carries N, path, boundCount, innerTotal, classId")
 {
-    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124, 9035);
+    const auto l = buildLoaded (5, "C:/x/Diva.vst3", 3124, 9035, "u-he Diva|Diva.vst3|...");
     REQUIRE (l.getAddressPattern().toString() == "/custos/loaded");
-    REQUIRE (l.size() == 4);
+    REQUIRE (l.size() == 5);
     REQUIRE (l[2].getInt32() == 3124);
     REQUIRE (l[3].getInt32() == 9035);   // innerTotal (full inner param count)
+    REQUIRE (l[4].getString() == "u-he Diva|Diva.vst3|...");   // v4: inner synth's stable classId
+}
+
+TEST_CASE ("buildLoaded carries an empty classId when nothing is loaded")
+{
+    // Cleared state: empty path, zero counts, empty classId — parses fine as a trailing empty arg.
+    const auto l = buildLoaded (5, "", 0, 0, "");
+    REQUIRE (l.size() == 5);
+    REQUIRE (l[4].getString().isEmpty());
 }
 
 TEST_CASE ("buildParam carries N, idx, val, name, defaultVal, numSteps, label")
@@ -231,9 +240,9 @@ TEST_CASE ("buildMainLR carries N first, then the fold flag")
     REQUIRE (off[1].getInt32() == 0);
 }
 
-TEST_CASE ("proto version is 3")
+TEST_CASE ("proto version is 4")
 {
-    REQUIRE (custos::kProtoVersion == 3);
+    REQUIRE (custos::kProtoVersion == 4);
 }
 
 TEST_CASE ("GP mirrors preset recall feedback")
