@@ -24,6 +24,12 @@ struct CommandResult { bool ok = false; int innerCount = 0; juce::String message
 // Which window (if any) to keep always-on-top.
 enum OnTopMode { OnTopOff, OnTopCustos, OnTopInstrument };
 
+// Docked-window on-top strategy. Mode A (default) forces always-on-top on the docking path —
+// today's behaviour, above EVERYTHING. Mode B follows KM's foreground state (reported over
+// /custos/window/ontop) so the docked window no longer floats over other apps. See
+// docs/superpowers/specs/2026-07-20-custos-dock-ontop-mode-design.md
+enum DockOnTopMode { DockOnTopAlways, DockOnTopFollowKm };
+
 class CustosProcessor : public juce::AudioProcessor,
                         private juce::AudioProcessorListener   // re-bind on late param populate (#11) + Learn capture (#12)
 {
@@ -150,11 +156,21 @@ public:
     void setOnTopMode (OnTopMode mode);
     OnTopMode getOnTopMode() const noexcept { return onTopMode; }
 
+    // Docked-window on-top strategy (message thread). setDockOnTopState is KM's runtime switch AND
+    // its heartbeat: -1 = hands off (Mode A, today's unconditional on-top); 0/1 = Mode B with KM's
+    // foreground = (state != 0). dockOnTopEffective() is the flag the docking path applies.
+    void setDockOnTopState (int state);
+    bool dockOnTopEffective() const noexcept;
+    DockOnTopMode getDockOnTopMode() const noexcept { return dockMode; }
+    void setKmHeartbeatTimeoutMs (int ms) noexcept { kmHeartbeatTimeoutMs = ms; }   // test seam
+    bool kmHeartbeatArmed() const noexcept;   // true while the Mode B watchdog is running (diagnostic/test)
+
     // F3/F6: show (if needed) + place the synth window at a desktop-logical rect (DIPs, used as
     // JUCE-logical directly — awareness-invariant; contract 2026-07-19). Message thread.
     // clamp = constrain the rect to the monitor work area (config phase; keeps the drag borders reachable).
     // fit = treat (x,y,w,h) as an available AREA; fit the editor aspect-preserved + centred, leaving a
-    //   marginLogical (logical px) frame, and force always-on-top (docking into a host UI region). fit wins over clamp.
+    //   marginLogical (logical px) frame, and apply the docked on-top strategy (always-on-top in Mode A,
+    //   follow-KM in Mode B — see setDockOnTopState). fit wins over clamp.
     void setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp = false,
                              bool fit = false, int marginLogical = 0);
 
@@ -225,6 +241,11 @@ private:
     WindowMode windowMode = WinNone;      // remembered so a load (browse/OSC) re-shows the window with the new synth
     bool windowBorderlessMovable = false; // last movable flag for the borderless "Open"
     OnTopMode onTopMode = OnTopOff;             // keep-on-top target
+    DockOnTopMode dockMode = DockOnTopAlways;   // docked-window on-top strategy (A = today's default)
+    bool kmForeground = false;                  // Mode B: last foreground state KM reported
+    bool synthWindowDocked = false;             // the borderless window is currently docked (fit) -> on-top managed
+    int kmHeartbeatTimeoutMs = 5000;   // Mode B watchdog: KM silent this long -> treat as background
+    void applyDockOnTop();                      // (re)apply the effective flag to a live docked window
     std::unique_ptr<CustosOscServer> oscServer; // M3; nullptr when OSC disabled or bind failed
     std::shared_ptr<bool> aliveToken { std::make_shared<bool> (true) };   // guards deferred close callbacks against use-after-free
     int boundCount = 0;
@@ -246,6 +267,7 @@ private:
     int browseIndex = -1;   // Prev/Next cursor into getFavorites(); -1 = unset (seed from loaded synth)
     struct DebounceTimer : juce::Timer { std::function<void()> cb;
         void timerCallback() override { stopTimer(); if (cb) cb(); } } browseDebounce;
+    DebounceTimer kmHeartbeat;   // Mode B watchdog; re-armed on every /custos/window/ontop, one-shot
     void commitBrowseLoad();                                // debounce fired -> load the cursor if it changed
     void emitBrowsing (int index, const juce::String& name, bool wrapped);
     void emitErrorAck (const juce::String& message);        // trace + /custos/ack via outboundSink (mirrors to GP)

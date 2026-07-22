@@ -201,7 +201,7 @@ void CustosProcessor::emitLoaded()
 {
     traceN ("loaded \"" + currentSynthPath + "\" count=" + juce::String (boundCount) + " total=" + juce::String (innerParamTotal()));
     if (outboundSink)
-        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal()));
+        outboundSink (buildLoaded (identityN, currentSynthPath, boundCount, innerParamTotal(), innerSynthKey()));
 }
 
 void CustosProcessor::dumpParams (int start, int count)
@@ -845,6 +845,12 @@ void CustosProcessor::emitPreset (const juce::String& verb, const juce::String& 
     m.addInt32 (identityN);
     m.addString (name);
     m.addInt32 (idx);
+    // v4: live-tag the event with the loaded synth's stable classId + human name so GP (which
+    // drives the preset axis autonomously) can bind the event to its synth without tracking load
+    // state. Trailing/additive: old readers stop at idx. Empty when no inner (classId ""), though
+    // these verbs only fire with an inner present.
+    m.addString (innerSynthKey());
+    m.addString (innerSynthName());
     outboundSink (m);
 }
 
@@ -860,7 +866,9 @@ void CustosProcessor::emitPresetError (const juce::String& reason)
 void CustosProcessor::showSynthWindow()
 {
     if (inner == nullptr) return;                              // nothing to show
-    if (synthWindow != nullptr) { synthWindow->toFront (true); return; }
+    if (synthWindow != nullptr) { synthWindow->toFront (false); return; }   // borderless aux window: never steal focus
+                                                                            // (docking Mode B: focus theft makes KM
+                                                                            //  lose foreground and drop the window)
     if (auto* ed = inner->createEditorAndMakeActive())        // null if the synth has no editor (JUCE 8 API)
     {
         synthWindow = std::make_unique<SynthWindow> (ed);    // borderless; closed via hideSynthWindow only
@@ -868,6 +876,7 @@ void CustosProcessor::showSynthWindow()
         synthWindow->onReadout = [this] { updateEditorRectReadout(); };   // live x/y/w/h (drag + inner zoom)
         synthWindow->onCommit  = [this] { emitWindowRect(); };            // drag-end + content-driven resize
         windowMode = WinBorderless;
+        synthWindowDocked = false;   // freshly shown at natural size -> not docked until a fit rect arrives
     }
     refreshEditor();
 }
@@ -920,6 +929,39 @@ void CustosProcessor::setOnTopMode (OnTopMode mode)
     refreshEditor();
 }
 
+void CustosProcessor::setDockOnTopState (int state)
+{
+    if (state < 0)                       // -1 = hands off -> Mode A (today's unconditional on-top)
+    {
+        dockMode = DockOnTopAlways;
+        kmHeartbeat.stopTimer();
+    }
+    else                                 // 0/1 = KM takes control -> Mode B
+    {
+        dockMode = DockOnTopFollowKm;
+        kmForeground = (state != 0);
+        kmHeartbeat.cb = [this] { kmForeground = false; applyDockOnTop(); };   // silence -> background
+        kmHeartbeat.startTimer (kmHeartbeatTimeoutMs);                         // (re)arm on every message
+    }
+    traceN ("dock on-top state=" + juce::String (state)
+            + " mode=" + juce::String (dockMode == DockOnTopAlways ? "A" : "B")
+            + " effective=" + juce::String (dockOnTopEffective() ? 1 : 0));
+    applyDockOnTop();
+}
+
+bool CustosProcessor::dockOnTopEffective() const noexcept
+{
+    return dockMode == DockOnTopAlways ? true : kmForeground;
+}
+
+bool CustosProcessor::kmHeartbeatArmed() const noexcept { return kmHeartbeat.isTimerRunning(); }
+
+void CustosProcessor::applyDockOnTop()
+{
+    if (synthWindow != nullptr && synthWindowDocked)
+        synthWindow->setAlwaysOnTop (dockOnTopEffective());
+}
+
 void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movable, bool clamp, bool fit, int marginLogical)
 {
     if (synthWindow == nullptr) showSynthWindow();   // ensure it exists
@@ -965,8 +1007,17 @@ void CustosProcessor::setSynthWindowRect (int x, int y, int w, int h, bool movab
 
     synthWindowMovable = movable;
     synthWindow->applyRect (logical, movable, /*sticky*/ fit);   // docked fit stays put against editor self-resize
-    if (fit)                                  // docked into a host UI region (KM SYNTH view): keep it above the
-        synthWindow->setAlwaysOnTop (true);   // host — onTopMode default is Off, so it would fall behind KM otherwise
+    if (fit)   // docked into a host UI region (KM SYNTH view): keep it above the host. Mode A applies an
+    {          // unconditional true (unchanged); Mode B applies KM's foreground state instead.
+        synthWindowDocked = true;
+        synthWindow->setAlwaysOnTop (dockOnTopEffective());
+    }
+    else
+    {
+        synthWindowDocked = false;   // a non-fit placement is no longer docked
+        if (dockMode == DockOnTopFollowKm)       // Mode B: leaving the dock must not strand the window on top
+            synthWindow->setAlwaysOnTop (false);  // (Mode A: untouched -> bit-identical to pre-feature behaviour)
+    }
     updateEditorRectReadout();   // reflect the applied position in the editor fields
     emitWindowRect();            // echo the applied position to KM
 }
@@ -998,6 +1049,7 @@ void CustosProcessor::hideSynthWindow()
     synthWindow.reset();
     titledWindow.reset();
     windowMode = WinNone;
+    synthWindowDocked = false;
     refreshEditor();   // keep the editor's button label in sync (also on external title-bar close)
 }
 

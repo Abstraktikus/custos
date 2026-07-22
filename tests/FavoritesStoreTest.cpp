@@ -61,6 +61,26 @@ TEST_CASE ("legacy Favorite JSON without controlType defaults to PRESET")
     REQUIRE (out[0].paramUp  == 0);
 }
 
+TEST_CASE ("Favorite round-trips classId (v4)")
+{
+    std::vector<custos::Favorite> in;
+    custos::Favorite f;
+    f.name = "Diva"; f.path = "C:/x/Diva.vst3"; f.favOrder = 1; f.gainDb = -3.0f;
+    f.brand = "u-he"; f.slots = 2797; f.classId = "u-he Diva|Diva.vst3|...";
+    in.push_back (f);
+
+    const auto out = custos::favoritesFromJson (custos::favoritesToJson (in));
+    REQUIRE (out.size() == 1);
+    REQUIRE (out[0].classId == "u-he Diva|Diva.vst3|...");
+}
+
+TEST_CASE ("legacy Favorite JSON without classId loads as empty (v4 back-compat)")
+{
+    const auto out = custos::favoritesFromJson (R"([{"name":"X","path":"C:/x.vst3","favOrder":1}])");
+    REQUIRE (out.size() == 1);
+    REQUIRE (out[0].classId.isEmpty());
+}
+
 TEST_CASE ("readInstruments prefers the new file, else migrates the legacy file")
 {
     auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory)

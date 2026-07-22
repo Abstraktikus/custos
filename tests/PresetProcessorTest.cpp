@@ -49,6 +49,31 @@ TEST_CASE ("save writes a file and emits saved with identity first")
     root.deleteRecursively();
 }
 
+TEST_CASE ("emitPreset appends classId + synthName (v4 live tagging)")
+{
+    juce::ScopedJuceInitialiser_GUI juceInit;
+    auto root = juce::File::createTempFile (""); root.deleteFile(); root.createDirectory();
+    CustosProcessor proc (false, root.getChildFile ("presetRoot.txt"));
+    proc.setIdentity (4);
+    proc.setPresetRoot (root.getFullPathName());
+    proc.attachInner (std::make_unique<test::FakeInnerProcessor>());
+
+    std::vector<juce::OSCMessage> msgs;
+    proc.outboundSink = [&] (const juce::OSCMessage& m) { msgs.push_back (m); };
+
+    // Every preset verb funnels through emitPreset, so proving it on one verb proves the funnel.
+    // Shape: N, name, idx, classId, synthName. The fake inner reports both as "FakeInner"
+    // (non-plugin fallback in innerSynthKey; getName() for innerSynthName).
+    proc.savePreset ("Warm Pad");
+    REQUIRE (msgs.size() == 1);
+    REQUIRE (msgs[0].getAddressPattern().toString() == "/custos/preset/saved");
+    REQUIRE (msgs[0].size() == 5);
+    REQUIRE (msgs[0][1].getString() == "Warm Pad");         // name
+    REQUIRE (msgs[0][3].getString() == "FakeInner");        // classId (innerSynthKey)
+    REQUIRE (msgs[0][4].getString() == "FakeInner");        // synthName (innerSynthName)
+    root.deleteRecursively();
+}
+
 TEST_CASE ("save with no synth loaded emits error, writes nothing")
 {
     juce::ScopedJuceInitialiser_GUI juceInit;

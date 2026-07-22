@@ -82,6 +82,8 @@ Command parseCommand (const juce::OSCMessage& msg)
                 c.fav.paramDown = msg[8].getInt32();
             if (msg.size() >= 10 && msg[9].isInt32())   // paramUp optional 10th arg
                 c.fav.paramUp = msg[9].getInt32();
+            if (msg.size() >= 11 && msg[10].isString()) // classId optional 11th arg (v4): durable stable key
+                c.fav.classId = msg[10].getString();
             return c;
         }
         return { Command::Unknown, {} };
@@ -121,6 +123,15 @@ Command parseCommand (const juce::OSCMessage& msg)
                 c.fit = msg[6].getInt32() != 0;
             if (msg.size() >= 8 && msg[7].isInt32())   // margin optional (logical px), only meaningful with fit
                 c.marginLogical = msg[7].getInt32();
+            return c;
+        }
+        return { Command::Unknown, {} };
+    }
+    if (addr == "/custos/window/ontop")
+    {
+        if (msg.size() >= 1 && msg[0].isInt32())
+        {
+            Command c; c.kind = Command::WindowOnTop; c.onTopState = msg[0].getInt32();
             return c;
         }
         return { Command::Unknown, {} };
@@ -361,6 +372,9 @@ void CustosOscServer::oscMessageReceived (const juce::OSCMessage& msg)
             break;
         case Command::WindowRect:
             proc.setSynthWindowRect (cmd.rx, cmd.ry, cmd.rw, cmd.rh, cmd.movable, cmd.clamp, cmd.fit, cmd.marginLogical);
+            break;
+        case Command::WindowOnTop:
+            proc.setDockOnTopState (cmd.onTopState);
             break;
         case Command::MidiRoute:
         {

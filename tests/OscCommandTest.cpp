@@ -213,6 +213,29 @@ TEST_CASE ("parseCommand keeps v2 /custos/favorite (5 args) working")
     REQUIRE (c.fav.controlType == "PRESET");   // struct default
 }
 
+TEST_CASE ("parseCommand reads classId as the optional 11th /custos/favorite arg (v4)")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("Diva"); m.addString ("C:/x/Diva.vst3");
+    m.addInt32 (3); m.addFloat32 (-3.0f); m.addString ("u-he"); m.addInt32 (2797);
+    m.addString ("PRESET"); m.addInt32 (0); m.addInt32 (0);
+    m.addString ("u-he Diva|Diva.vst3|...");   // 11th arg: classId
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.classId == "u-he Diva|Diva.vst3|...");
+}
+
+TEST_CASE ("parseCommand leaves classId empty on a v3 /custos/favorite (<=10 args)")
+{
+    juce::OSCMessage m ("/custos/favorite");
+    m.addInt32 (0); m.addString ("Old"); m.addString ("C:/x/Old.vst3");
+    m.addInt32 (1); m.addFloat32 (0.0f); m.addString ("brand"); m.addInt32 (100);
+    m.addString ("PARAM"); m.addInt32 (98); m.addInt32 (99);   // exactly 10 args, no classId
+    const auto c = parseCommand (m);
+    REQUIRE (c.kind == Command::FavEntry);
+    REQUIRE (c.fav.classId.isEmpty());   // back-compat: absent classId stays empty
+}
+
 TEST_CASE ("parseCommand maps /custos/patch/next and /custos/patch/prev")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/patch/next")).kind == Command::PatchNext);
@@ -229,4 +252,26 @@ TEST_CASE ("parseCommand maps /custos/preset/queryroot")
 {
     REQUIRE (parseCommand (juce::OSCMessage ("/custos/preset/queryroot")).kind
              == Command::PresetQueryRoot);
+}
+
+TEST_CASE ("parseCommand maps /custos/window/ontop with an int state")
+{
+    const auto on  = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) 1));
+    REQUIRE (on.kind == Command::WindowOnTop);
+    REQUIRE (on.onTopState == 1);
+
+    const auto off = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) 0));
+    REQUIRE (off.kind == Command::WindowOnTop);
+    REQUIRE (off.onTopState == 0);
+
+    const auto handsOff = parseCommand (juce::OSCMessage ("/custos/window/ontop", (juce::int32) -1));
+    REQUIRE (handsOff.kind == Command::WindowOnTop);
+    REQUIRE (handsOff.onTopState == -1);
+}
+
+TEST_CASE ("parseCommand rejects /custos/window/ontop without an int arg")
+{
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/ontop")).kind == Command::Unknown);
+    REQUIRE (parseCommand (juce::OSCMessage ("/custos/window/ontop",
+                                             juce::String ("1"))).kind == Command::Unknown);
 }

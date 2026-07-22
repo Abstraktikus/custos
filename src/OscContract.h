@@ -8,7 +8,7 @@
 
 namespace custos
 {
-constexpr int kProtoVersion = 3;
+constexpr int kProtoVersion = 4;
 
 // Deterministic 1-based mapping. N in 1..15 -> BASE+N; anything else -> 0 (invalid / unassigned).
 inline int oscPortForIdentity (int n)
@@ -27,9 +27,14 @@ inline juce::OSCMessage buildAck (int n, const juce::String& text)
     return juce::OSCMessage ("/custos/ack", n, text);
 }
 
-inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount, int innerTotal)
+// classId (v4, trailing/additive) = the inner synth's stable VST3 createIdentifierString()
+// (innerSynthKey()) — the same key that names preset folders and stamps .cuspreset files, exposed
+// so KM can build a hard preset(classId) -> instrument(classId) link. Empty when nothing is loaded
+// (cleared); a v3 reader stops at innerTotal and ignores it.
+inline juce::OSCMessage buildLoaded (int n, const juce::String& path, int boundCount, int innerTotal,
+                                     const juce::String& classId)
 {
-    return juce::OSCMessage ("/custos/loaded", n, path, boundCount, innerTotal);
+    return juce::OSCMessage ("/custos/loaded", n, path, boundCount, innerTotal, classId);
 }
 
 inline juce::OSCMessage buildParam (int n, int idx, float val, const juce::String& name,
